@@ -48,7 +48,25 @@ export function App() {
           Eraser
         </Tool>
         <Tool onClick={() => emojiCanvas?.clear()}>Clear</Tool>
+        <Tool
+          onClick={async () => {
+            const str = emojiCanvas?.getDrawingAsString()
+
+            if (str) {
+              await navigator.clipboard.writeText(str)
+            }
+          }}
+        >
+          Copy
+        </Tool>
       </Tools>
+
+      {/*<dialog open className="border rounded px-1">*/}
+      {/*  <p>Copied!</p>*/}
+      {/*  <form method="dialog">*/}
+      {/*    <button className="hover:bg-slate-100 border rounded px-1">OK</button>*/}
+      {/*  </form>*/}
+      {/*</dialog>*/}
     </div>
   )
 }
