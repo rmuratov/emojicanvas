@@ -15,7 +15,7 @@ export function App() {
 
   const ref = useRef<HTMLDivElement | null>(null)
 
-  const emojiCanvas = useEmojiCanvas(ref, brush)
+  const { canvas: emojiCanvas, isErasing } = useEmojiCanvas(ref, brush)
 
   const handleEmojiClick = useCallback(
     (emojiCode: string) => {
@@ -26,20 +26,25 @@ export function App() {
     [emojiCanvas],
   )
 
-  console.log('999', handleEmojiClick)
-
   return (
     <div className="flex flex-col space-y-2 items-center pt-7 min-w-fit md:space-y-0 md:flex-row-reverse md:justify-center md:items-start">
       <div ref={ref} />
       <Tools>
-        <Tool className="relative" onClick={() => setIsBrushSelecting(true)}>
+        <Tool
+          isSelected={!isErasing}
+          className="relative"
+          onClick={() => setIsBrushSelecting(true)}
+        >
           {brush}
           <EmojiPicker
             isHidden={!isBrushSelecting}
             onEmojiClick={handleEmojiClick}
           />
         </Tool>
-        <Tool isSelected={false} onClick={() => emojiCanvas?.setErasingMode()}>
+        <Tool
+          isSelected={isErasing}
+          onClick={() => emojiCanvas?.setErasingMode()}
+        >
           Eraser
         </Tool>
         <Tool onClick={() => emojiCanvas?.clear()}>Clear</Tool>

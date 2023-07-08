@@ -231,7 +231,6 @@ export class EmojiCanvas {
   }
 
   setBrush = (brush: string) => {
-    console.log('sss', brush)
     this.brush = brush
     this.onErasingStatusChange?.(brush === this.filler)
   }
