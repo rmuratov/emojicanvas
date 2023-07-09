@@ -90,7 +90,7 @@ export class EmojiCanvas {
     this.fillMatrixCell(gridX, gridY, this.brush)
 
     if (!this.isErasing()) {
-      this.ctx.strokeText(
+      this.ctx.fillText(
         this.brush,
         canvasX + this.cellWidth / 2 + this.emojiOffsetInsideCellX,
         canvasY + this.cellHeight / 2 + this.emojiOffsetInsideCellY,
@@ -142,6 +142,10 @@ export class EmojiCanvas {
     this.ctx.restore()
 
     this.ctx.font = `${cellHeight}px Arial`
+
+    // this.ctx.font = `${cellHeight}px "Twemoji Mozilla","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",' +
+    // '"Noto Color Emoji","EmojiOne Color","Android Emoji",sans-serif`
+
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
   }

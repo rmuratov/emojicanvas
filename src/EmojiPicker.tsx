@@ -16,9 +16,13 @@ export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
   }, [onEmojiClick])
 
   return (
-    <div className={`absolute top-8 -left-0 ${isHidden ? 'hidden' : ''}`}>
+    <div
+      className={`fixed w-full bottom-0 left-0 md:w-auto md:absolute md:top-8 md:-left-0 ${
+        isHidden ? 'hidden' : ''
+      }`}
+    >
       {/*@ts-ignore*/}
-      <emoji-picker ref={ref} class="light" />
+      <emoji-picker ref={ref} class="light w-full" />
     </div>
   )
 }
