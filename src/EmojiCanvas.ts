@@ -6,8 +6,8 @@ export class EmojiCanvas {
   private brush = '❤️'
   private columnsCount = 12
   private rowsCount = 12
-  private cellWidth = 25 // px
-  private cellHeight = 25 // px
+  private cellWidth = 30 // px
+  private cellHeight = 30 // px
   private borderWidth = 1 // px
   private gridBackgroundColor = 'white'
   private borderColor = 'darkgrey'
@@ -44,6 +44,10 @@ export class EmojiCanvas {
     canvas.addEventListener('mouseup', this.handleMouseUp)
     canvas.addEventListener('mousemove', this.handleMouseMoveDrawEmoji)
     canvas.addEventListener('mouseleave', this.handleMouseLeave)
+
+    canvas.addEventListener('touchstart', this.handleMouseDown)
+    canvas.addEventListener('touchmove', this.handleTouchMoveDrawEmoji)
+    canvas.addEventListener('touchend', this.handleMouseLeave)
   }
 
   private handleMouseMoveDrawEmoji = (event: MouseEvent) => {
@@ -74,6 +78,17 @@ export class EmojiCanvas {
   private handleMouseLeave = () => {
     if (this.isDrawing) {
       this.isDrawing = false
+    }
+  }
+
+  private handleTouchMoveDrawEmoji = (event: TouchEvent) => {
+    if (this.isDrawing) {
+      for (const evt of event.touches) {
+        const position = this.getBrushEventPosition(evt)
+        if (position) {
+          this.drawEmoji(position)
+        }
+      }
     }
   }
 
@@ -141,10 +156,7 @@ export class EmojiCanvas {
     }
     this.ctx.restore()
 
-    this.ctx.font = `${cellHeight}px Arial`
-
-    // this.ctx.font = `${cellHeight}px "Twemoji Mozilla","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",' +
-    // '"Noto Color Emoji","EmojiOne Color","Android Emoji",sans-serif`
+    this.ctx.font = `${cellHeight}px "Twemoji Mozilla", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", "EmojiOne Color", "Android Emoji", sans-serif`
 
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
@@ -199,7 +211,9 @@ export class EmojiCanvas {
     return { canvas, ctx }
   }
 
-  private getBrushEventPosition(evt: MouseEvent): BrushEventPosition | null {
+  private getBrushEventPosition(
+    evt: MouseEvent | Touch,
+  ): BrushEventPosition | null {
     if (!(evt.target instanceof Element)) return null
 
     const canvasBoundingClientRect = this.canvas.getBoundingClientRect()

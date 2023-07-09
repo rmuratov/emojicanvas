@@ -89,7 +89,7 @@ function Tool({
 >) {
   return (
     <button
-      className={`hover:bg-slate-100 border rounded px-1 ${className} ${
+      className={`hover:bg-slate-100 border rounded p-5 ${className} ${
         isSelected && 'bg-slate-200'
       }`}
       onClick={onClick}
