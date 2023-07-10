@@ -12,7 +12,7 @@ export class EmojiCanvas {
   private gridBackgroundColor = 'white'
   private borderColor = 'darkgrey'
   private emojiOffsetInsideCellX = 0
-  private emojiOffsetInsideCellY = 2.5
+  private emojiOffsetInsideCellY = 4
   private filler = '〰️'
   private readonly onErasingStatusChange?: (isErasing: boolean) => void
 
@@ -101,8 +101,24 @@ export class EmojiCanvas {
   private drawEmoji(position: BrushEventPosition) {
     const { canvasX, canvasY, gridX, gridY } = position
 
+    if (
+      !this.matrix[gridX]?.[gridY] ||
+      this.matrix[gridX][gridY] === this.brush
+    ) {
+      return
+    }
+
     this.clearCell(canvasX, canvasY)
-    this.fillMatrixCell(gridX, gridY, this.brush)
+
+    this.matrix[gridX][gridY] = this.brush
+
+    // const metrics = this.ctx.measureText(this.brush)
+    // const fontHeight =
+    //   metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent
+    // const actualHeight =
+    //   metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent
+    //
+    // console.log(metrics.width, fontHeight, actualHeight)
 
     if (!this.isErasing()) {
       this.ctx.fillText(
@@ -111,14 +127,6 @@ export class EmojiCanvas {
         canvasY + this.cellHeight / 2 + this.emojiOffsetInsideCellY,
       )
     }
-  }
-
-  private fillMatrixCell(gridX: number, gridY: number, value: string) {
-    if (!this.matrix[gridX]?.[gridY] || this.matrix[gridX][gridY] === value) {
-      return
-    }
-
-    this.matrix[gridX][gridY] = value
   }
 
   private clearCell(x: number, y: number) {
@@ -264,6 +272,10 @@ export class EmojiCanvas {
 
   isErasing = () => {
     return this.brush === this.filler
+  }
+
+  remove = () => {
+    this.canvas.remove()
   }
 }
 

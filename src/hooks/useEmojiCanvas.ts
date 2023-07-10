@@ -1,9 +1,9 @@
 import { MutableRefObject, useEffect, useMemo, useState } from 'react'
-import { EmojiCanvas } from './EmojiCanvas.ts'
+import { EmojiCanvas } from '../lib'
 
 export function useEmojiCanvas(
   ref: MutableRefObject<HTMLElement | null>,
-  brush?: string,
+  initialBrush?: string,
 ) {
   const [canvas, setCanvas] = useState<EmojiCanvas>()
   const [isErasing, setIsErasing] = useState(false)
@@ -12,7 +12,7 @@ export function useEmojiCanvas(
     if (ref && ref.current && !ref.current.hasChildNodes()) {
       const emojiCanvas = new EmojiCanvas(
         ref.current,
-        brush,
+        initialBrush,
         (isErasing: boolean) => setIsErasing(isErasing),
       )
 
@@ -20,7 +20,9 @@ export function useEmojiCanvas(
         setCanvas(emojiCanvas)
       }
     }
-  }, [ref, canvas, brush])
+
+    return () => canvas?.remove()
+  }, [ref, canvas, initialBrush])
 
   return useMemo(() => ({ canvas, isErasing }), [canvas, isErasing])
 }

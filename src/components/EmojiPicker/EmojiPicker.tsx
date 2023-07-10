@@ -1,19 +1,12 @@
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
+import 'emoji-picker-element'
 import { Picker } from 'emoji-picker-element'
+import { useEmojiPicker } from '../../hooks/useEmojiPicker.ts'
 
 export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
   const ref = useRef<Picker>(null)
 
-  // TODO: Fix doubling if listener
-  useEffect(() => {
-    if (ref.current && onEmojiClick) {
-      ref.current.addEventListener('emoji-click', event => {
-        if (!event.detail.unicode) return
-
-        onEmojiClick(event.detail.unicode)
-      })
-    }
-  }, [onEmojiClick])
+  useEmojiPicker(ref, onEmojiClick)
 
   return (
     <div
