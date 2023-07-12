@@ -13,7 +13,7 @@ export function useEmojiCanvas(
       const emojiCanvas = new EmojiCanvas(
         ref.current,
         initialBrush,
-        (isErasing: boolean) => setIsErasing(isErasing),
+        setIsErasing,
       )
 
       if (!canvas) {
