@@ -1,21 +1,8 @@
 # EmojiCanvas
 
-WIP. Emoji Canvas is a small web app that lets you draw with emojis and then export the result as text, so you can send your beautiful emoji art to your friend. It is available on https://rmuratov.github.io/emojicanvas/.
+**WIP**. EmojiCanvas is a small web app that lets you draw with emojis and then export the result as text, so you can send your beautiful emoji art to your friend. It is available on https://rmuratov.github.io/emojicanvas/.
 
-```
-🌸🌸🟫🟫🟫🌸🌸🟫🟫🟫🌸🌸
-🌸🟫🟨🟨🟨🟫🟫🟨🟨🟨🟫🌸
-🟫🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨🟫
-🟫🟨🟨⬛️⬜️🟨🟨⬛️⬜️🟨🟨🟫
-🟫🟨🟨⬛️⬛️🟨🟨⬛️⬛️🟨🟨🟫
-🌸🟫🟪🟪🟨🟨🟨🟨🟪🟪🟫🌸
-🌸🟫🟨🟨🟨🟨🟨🟨🟨🟨🟫🌸
-🌸🟫🟨🟨🟨🟨🟨🟨🟨🟨🟫🌸
-🌸🟫🟨🟨🟨🟨🟨🟨🟨🟨🟫🌸
-🌸🟫🟨🟨🟨🟨🟨🟨🟨🟨🟫🌸
-🌸🟫🟨🟨🟨🟨🟨🟨🟨🟨🟫🌸
-🌸🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫🌸
-```
+![](./public/picture.png)
 
 ## Development
 
@@ -34,9 +21,12 @@ npm run dev
 - [x] Clear action
 - [x] Eraser
 - [x] Export/Copy tool
+- [ ] Fast switch back to current brush (do not open picker every time)
 - [ ] More tools: fill, line, rectangle, circle
 - [ ] Better alignment of emojis. [See details](#better-positioning-on-the-canvas).
 - [ ] Better solution for filler. [See details](#filler).
+- [ ] Import/Save.
+- [ ] Option to trim surrounding empty space while exporting.
 
 ### Better positioning on the canvas
 
