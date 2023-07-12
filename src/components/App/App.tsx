@@ -1,8 +1,8 @@
-import { EmojiPicker } from '../EmojiPicker'
 import { useCallback, useRef, useState } from 'react'
 import { useEmojiCanvas } from '../../hooks'
 import { Tools } from '../Tools'
 import { Tool } from '../Tool'
+import { EmojiPickerButton } from '../EmojiPickerButton'
 
 export function App() {
   const initialBrush = '❤️'
@@ -27,17 +27,13 @@ export function App() {
       <div ref={ref} />
 
       <Tools>
-        <Tool
+        <EmojiPickerButton
+          brush={brush}
           isSelected={!isErasing}
-          className="relative"
           onClick={() => setIsBrushSelecting(true)}
-        >
-          {brush}
-          <EmojiPicker
-            isHidden={!isBrushSelecting}
-            onEmojiClick={handleEmojiClick}
-          />
-        </Tool>
+          isEmojiPickerHidden={!isBrushSelecting}
+          onEmojiClick={handleEmojiClick}
+        />
         <Tool
           isSelected={isErasing}
           onClick={() => emojiCanvas?.setErasingMode()}

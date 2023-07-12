@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import 'emoji-picker-element'
 import { Picker } from 'emoji-picker-element'
-import { useEmojiPicker } from '../../hooks/useEmojiPicker.ts'
+import { useEmojiPicker } from '../../hooks'
 
 export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
   const ref = useRef<Picker>(null)
@@ -10,7 +10,7 @@ export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
 
   return (
     <div
-      className={`fixed w-full bottom-0 left-0 md:w-auto md:absolute md:top-8 md:-left-0 ${
+      className={`fixed w-full bottom-0 left-0 md:w-auto md:absolute md:top-full md:-left-0 ${
         isHidden ? 'hidden' : ''
       }`}
     >
