@@ -1,6 +1,6 @@
-import { useRef } from 'react'
-import 'emoji-picker-element'
 import { Picker } from 'emoji-picker-element'
+import { useRef } from 'react'
+
 import { useEmojiPicker } from '../../hooks'
 
 export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {

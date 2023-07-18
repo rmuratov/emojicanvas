@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
+
 import { useEmojiCanvas } from '../../hooks'
-import { Tools } from '../Tools'
-import { Tool } from '../Tool'
 import { EmojiPickerButton } from '../EmojiPickerButton'
+import { Tool } from '../Tool'
+import { Tools } from '../Tools'
 
 export function App() {
   const initialBrush = '❤️'

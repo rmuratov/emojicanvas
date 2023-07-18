@@ -1,5 +1,5 @@
-import { RefObject, useEffect } from 'react'
 import { Picker } from 'emoji-picker-element'
+import { RefObject, useEffect } from 'react'
 
 export function useEmojiPicker(
   ref: RefObject<Picker>,

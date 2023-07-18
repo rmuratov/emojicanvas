@@ -1,4 +1,5 @@
 import { MutableRefObject, useEffect, useMemo, useState } from 'react'
+
 import { EmojiCanvas } from '../lib'
 
 export function useEmojiCanvas(

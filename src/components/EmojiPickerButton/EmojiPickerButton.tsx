@@ -1,6 +1,7 @@
-import { Tool } from '../Tool'
-import { EmojiPicker } from '../EmojiPicker'
 import { FC } from 'react'
+
+import { EmojiPicker } from '../EmojiPicker'
+import { Tool } from '../Tool'
 
 export const EmojiPickerButton: FC<EmojiPickerButtonProps> = ({
   brush,
