@@ -30,9 +30,9 @@ export function App() {
       <Tools>
         <EmojiPickerButton
           brush={brush}
+          isEmojiPickerHidden={!isBrushSelecting}
           isSelected={!isErasing}
           onClick={() => setIsBrushSelecting(true)}
-          isEmojiPickerHidden={!isBrushSelecting}
           onEmojiClick={handleEmojiClick}
         />
         <Tool

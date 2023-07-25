@@ -15,7 +15,7 @@ export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
       }`}
     >
       {/*@ts-ignore*/}
-      <emoji-picker ref={ref} class="light w-full" />
+      <emoji-picker class="light w-full" ref={ref} />
     </div>
   )
 }

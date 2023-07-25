@@ -47,6 +47,17 @@ module.exports = {
     'import/newline-after-import': 'warn',
     '@typescript-eslint/ban-ts-comment': 'off',
     'react/boolean-prop-naming': 'warn',
+
+    'react/jsx-sort-props': [
+      'warn',
+      {
+        callbacksLast: true,
+        shorthandFirst: true,
+        ignoreCase: false,
+      },
+    ],
+
+    'no-unused-vars': 'off', // TS takes care of this
   },
   settings: {
     'import/resolver': {
