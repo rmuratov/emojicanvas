@@ -9,6 +9,7 @@ module.exports = {
     'plugin:react-hooks/recommended',
     'plugin:react/jsx-runtime',
     'plugin:import/recommended',
+    'plugin:perfectionist/recommended-natural',
     'prettier',
   ],
   overrides: [],
@@ -17,47 +18,17 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module',
   },
-  plugins: ['react', '@typescript-eslint', 'import'],
+  plugins: ['react', '@typescript-eslint', 'import', 'perfectionist'],
   rules: {
-    'sort-imports': [
-      'warn',
-      {
-        ignoreDeclarationSort: true,
-      },
-    ],
-    'import/order': [
-      'warn',
-      {
-        alphabetize: { order: 'asc' },
-        'newlines-between': 'always',
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-          'unknown',
-          'parent',
-          'sibling',
-          'index',
-          'object',
-          'type',
-        ],
-        warnOnUnassignedImports: true,
-      },
-    ],
     'import/newline-after-import': 'warn',
-    '@typescript-eslint/ban-ts-comment': 'off',
     'react/boolean-prop-naming': 'warn',
 
-    'react/jsx-sort-props': [
-      'warn',
-      {
-        callbacksLast: true,
-        shorthandFirst: true,
-        ignoreCase: false,
-      },
-    ],
-
+    /**
+     * DISABLED RULES
+     */
+    '@typescript-eslint/ban-ts-comment': 'off',
     'no-unused-vars': 'off', // TS takes care of this
+    'perfectionist/sort-classes': 'off',
   },
   settings: {
     'import/resolver': {

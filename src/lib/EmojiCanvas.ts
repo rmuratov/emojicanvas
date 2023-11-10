@@ -4,8 +4,8 @@ export class EmojiCanvas {
   private matrix: string[][]
   private isDrawing = false
   private brush = '❤️'
-  private columnsCount = 12
-  private rowsCount = 12
+  private columnsCount = 32
+  private rowsCount = 32
   private cellWidth = 30 // px
   private cellHeight = 30 // px
   private borderWidth = 1 // px
@@ -139,7 +139,7 @@ export class EmojiCanvas {
 
     const canvasWidth = this.calculateInitialCanvasWidthInPx()
     const canvasHeight = this.calculateInitialCanvasHeightInPx()
-    const { cellWidth, cellHeight, borderWidth } = this
+    const { borderWidth, cellHeight, cellWidth } = this
 
     this.ctx.fillStyle = this.gridBackgroundColor
     this.ctx.fillRect(0, 0, canvasWidth, canvasHeight)
@@ -230,7 +230,7 @@ export class EmojiCanvas {
 
     if (x < 0 || y < 0) return null
 
-    const { cellWidth, cellHeight, borderWidth } = this
+    const { borderWidth, cellHeight, cellWidth } = this
 
     const gridX = Math.ceil(x / (cellWidth + borderWidth)) - 1
     const gridY = Math.ceil(y / (cellHeight + borderWidth)) - 1

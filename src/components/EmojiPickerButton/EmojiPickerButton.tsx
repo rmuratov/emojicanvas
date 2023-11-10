@@ -17,9 +17,9 @@ export const EmojiPickerButton: FC<EmojiPickerButtonProps> = ({
 )
 
 export interface EmojiPickerButtonProps {
-  onClick: () => void
   brush: string
   isEmojiPickerHidden: boolean
   isSelected: boolean
+  onClick: () => void
   onEmojiClick: (emojiCode: string) => void
 }

@@ -3,8 +3,8 @@ import { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 export function Tool({
   children,
   className,
-  onClick,
   isSelected,
+  onClick,
 }: PropsWithChildren<
   ButtonHTMLAttributes<HTMLButtonElement> & { isSelected?: boolean }
 >) {
