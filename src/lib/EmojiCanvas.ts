@@ -4,8 +4,8 @@ export class EmojiCanvas {
   private matrix: string[][]
   private isDrawing = false
   private brush = '❤️'
-  private columnsCount = 32
-  private rowsCount = 32
+  private columnsCount = 16
+  private rowsCount = 16
   private cellWidth = 30 // px
   private cellHeight = 30 // px
   private borderWidth = 1 // px
