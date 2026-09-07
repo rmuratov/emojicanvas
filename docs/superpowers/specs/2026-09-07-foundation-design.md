@@ -29,6 +29,13 @@
 Сознательно **не** закладывается: слои, плагины, палитра цветов эмодзи, формат файла.
 Это спекуляция — проектируется, когда до неё дойдёт дело.
 
+## Язык
+
+Весь код в репозитории — на английском: идентификаторы, комментарии, имена тестов,
+сообщения коммитов. Этот документ и планы написаны по-русски, но ничто из них не
+попадает в код дословно: примеры кода здесь приводятся с английскими комментариями
+именно поэтому.
+
 ## Границы итерации
 
 **Входит:** обновление зависимостей и CI; новое ядро, рендер, ввод, инструменты;
@@ -129,14 +136,14 @@ src/
 ```ts
 type Emoji = string
 type Cell = { x: number; y: number }
-type CellBounds = { minX: number; minY: number; maxX: number; maxY: number } // включительно
+type CellBounds = { minX: number; minY: number; maxX: number; maxY: number } // inclusive
 
 class Scene {
   get(x: number, y: number): Emoji | undefined
   has(x: number, y: number): boolean
   readonly size: number
   entries(): IterableIterator<[Cell, Emoji]>
-  bounds(): CellBounds | null          // null, если сцена пуста
+  bounds(): CellBounds | null          // null when the scene is empty
   toJSON(): SceneData
   static fromJSON(data: SceneData): Scene
 }
@@ -157,11 +164,11 @@ class Scene {
 ### core/operations.ts
 
 ```ts
-type CellChange = { x: number; y: number; value: Emoji | undefined } // undefined = стереть
+type CellChange = { x: number; y: number; value: Emoji | undefined } // undefined = erase
 type Operation = { label: string; changes: readonly CellChange[] }
 
 function applyOperation(scene: Scene, op: Operation): void
-function invertOperation(scene: Scene, op: Operation): Operation  // читает состояние ДО применения
+function invertOperation(scene: Scene, op: Operation): Operation  // reads state BEFORE the operation is applied
 ```
 
 Одна операция описывает произвольное количество клеток. Мазок кисти — одна операция,
@@ -188,8 +195,8 @@ class StrokeRecorder {
 
 ```ts
 class History {
-  constructor(limit?: number)          // по умолчанию 100 операций
-  commit(op: Operation, inverse: Operation): void  // операция уже применена
+  constructor(limit?: number)          // defaults to 100 operations
+  commit(op: Operation, inverse: Operation): void  // the operation is already applied
   undo(scene: Scene): boolean
   redo(scene: Scene): boolean
   readonly canUndo: boolean
@@ -203,7 +210,7 @@ class History {
 ### core/camera.ts
 
 ```ts
-type Camera = { offsetX: number; offsetY: number; zoom: number } // смещение в пикселях мира
+type Camera = { offsetX: number; offsetY: number; zoom: number } // offset in world pixels
 
 function cellSizeAt(baseCellSize: number, zoom: number): number
 function screenToCell(camera: Camera, baseCellSize: number, px: number, py: number): Cell
@@ -220,7 +227,7 @@ function visibleBounds(camera: Camera, baseCellSize: number, width: number, heig
 ### core/line.ts
 
 ```ts
-function cellsBetween(from: Cell, to: Cell): Cell[]  // алгоритм Брезенхема, включая обе точки
+function cellsBetween(from: Cell, to: Cell): Cell[]  // Bresenham, both endpoints included
 ```
 
 Чинит дырки при быстром рисовании и переиспользуется будущим инструментом «линия».
@@ -228,7 +235,7 @@ function cellsBetween(from: Cell, to: Cell): Cell[]  // алгоритм Бре�
 ### core/export/text.ts
 
 ```ts
-function toText(scene: Scene, filler?: string): string  // filler по умолчанию '〰️'
+function toText(scene: Scene, filler?: string): string  // filler defaults to '〰️'
 ```
 
 Берёт `bounds()`, обходит прямоугольник построчно сверху вниз, подставляя филлер в пустые
@@ -265,8 +272,8 @@ function renderScene(
 ```ts
 class GlyphAtlas {
   constructor(dpr: number, fontStack: string)
-  get(emoji: Emoji, cellSizePx: number): CanvasImageSource  // растеризует при первом обращении
-  averageColor(emoji: Emoji): string                        // средний цвет глифа, для LOD
+  get(emoji: Emoji, cellSizePx: number): CanvasImageSource  // rasterises on first use
+  averageColor(emoji: Emoji): string                        // mean glyph colour, for LOD
   clear(): void
 }
 ```
@@ -335,10 +342,10 @@ function attachPointerInput(
     onDrawStart(cell: Cell): void
     onDrawMove(cell: Cell): void
     onDrawEnd(): void
-    onPan(dx: number, dy: number): void                       // в экранных пикселях
+    onPan(dx: number, dy: number): void                       // in screen pixels
     onZoom(factor: number, anchor: { px: number; py: number }): void
   },
-): () => void   // возвращает функцию снятия слушателей
+): () => void   // returns a detach function
 ```
 
 Между предыдущей и текущей клеткой достраивается путь через `cellsBetween`.
@@ -390,11 +397,11 @@ class Editor {
   redo(): void
   zoomBy(factor: number, anchor?: { px: number; py: number }): void
   panBy(dx: number, dy: number): void
-  resetView(): void               // возврат к масштабу 1 и содержимому в центре
+  resetView(): void               // back to zoom 1, content centred
   toText(): string
   subscribe(listener: () => void): () => void
   getSnapshot(): EditorState      // { brush, toolId, canUndo, canRedo, isEmpty, zoom }
-  destroy(): void                 // снимает слушатели, ResizeObserver и rAF
+  destroy(): void                 // removes listeners, ResizeObserver and rAF
 }
 ```
 

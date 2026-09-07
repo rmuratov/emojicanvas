@@ -1,14 +1,14 @@
 import type { Cell } from './types'
 
 /**
- * Клетки на отрезке между двумя точками по алгоритму Брезенхема,
- * включая обе крайние. Нужен, чтобы быстрое движение указателя
- * не оставляло разрывов в линии.
+ * Cells along the segment between two points, using Bresenham's
+ * algorithm and including both endpoints. Needed so that fast pointer
+ * movement does not leave gaps in a drawn line.
  *
- * Координаты округляются вниз (Math.floor) до целых клеток — так же,
- * как точка внутри клетки относится к этой клетке в остальной части
- * системы. Без этого нецелые координаты не давали циклу дойти до
- * условия выхода и зависали навсегда.
+ * Coordinates are floored to whole cells, matching how a point inside a
+ * cell belongs to that cell everywhere else in the system. Without this,
+ * fractional coordinates never satisfied the loop's exit condition and
+ * hung forever.
  */
 export function cellsBetween(from: Cell, to: Cell): Cell[] {
   const start = { x: Math.floor(from.x), y: Math.floor(from.y) }

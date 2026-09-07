@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 
-it('в браузерном проекте доступен настоящий 2D-контекст', () => {
+it('exposes a real 2D context in the browser project', () => {
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 32
@@ -15,7 +15,7 @@ it('в браузерном проекте доступен настоящий 2
   expect([r, g, b, a]).toEqual([255, 0, 0, 255])
 })
 
-it('measureText возвращает метрики фактических границ глифа', () => {
+it('returns actual glyph bounding-box metrics from measureText', () => {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
   ctx.font = '30px sans-serif'
