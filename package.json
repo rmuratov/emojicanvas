@@ -33,5 +33,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.69.0",
     "vite": "^8.2.2"
+  },
+  "overrides": {
+    "eslint-plugin-react": { "eslint": "$eslint" }
   }
 }
