@@ -9,16 +9,17 @@ npm ci
 npm run dev      # vite --host; app is at http://localhost:5173/emojicanvas/ (note the base path)
 npm run build    # tsc (typecheck, noEmit) && vite build
 npm run lint     # eslint src --ext ts,tsx --max-warnings 0
+npm test         # vitest run: a `node` project (pure logic in src/core, src/tools) and a `browser` project (Playwright + Chromium)
 npm run preview  # serve the production build
 ```
 
-There is no test suite. `npm run build` is the typecheck gate — run it plus `npm run lint` before claiming a change works.
+Run `npm test`, `npm run lint` and `npm run build` before claiming a change works.
 
 Pushes to `main` auto-deploy `dist/` to GitHub Pages (`.github/workflows/vite.yaml`), so `base: '/emojicanvas/'` in `vite.config.ts` must stay.
 
 ## Architecture
 
-React 18 + Vite + TypeScript + Tailwind. The drawing engine is deliberately **not** React.
+React 19 + Vite + TypeScript + Tailwind. The drawing engine is deliberately **not** React.
 
 - `src/lib/EmojiCanvas.ts` — a plain class that owns everything about drawing: it creates its own `<canvas>` inside a container element passed to the constructor, attaches its own mouse/touch listeners, and keeps a `string[][]` `matrix` as the source of truth for the picture. React never re-renders on drawing. The class throws if the container already has child nodes.
 - `src/hooks/useEmojiCanvas.ts` — the only bridge: instantiates `EmojiCanvas` on a ref, stores it in state, and mirrors erasing status into React via an `onErasingStatusChange` callback passed to the constructor.
@@ -39,5 +40,5 @@ Emoji rendering inside a cell uses hard-coded `emojiOffsetInsideCellX/Y` nudges.
 
 - Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
 - `eslint-plugin-perfectionist` (`recommended-natural`) is on: object keys, JSX props, interface members, imports and exports must be sorted naturally. `perfectionist/sort-classes` is disabled, so class members are free-form. Lint runs with `--max-warnings 0`, so a stray unsorted prop fails the build.
-- Styling is Tailwind utility classes inline; there is no CSS beyond the three `@tailwind` directives in `src/index.css`.
+- Styling is Tailwind utility classes inline; `src/index.css` is just a single `@import 'tailwindcss'` (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).
 - The README's TODO list is the roadmap (fill/line/rect tools, import/save, trimming empty space on export, faster brush switching).
