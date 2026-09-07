@@ -1,3 +1,10 @@
+type BrushEventPosition = {
+  canvasX: number
+  canvasY: number
+  gridX: number
+  gridY: number
+}
+
 export class EmojiCanvas {
   private canvas: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
@@ -277,11 +284,4 @@ export class EmojiCanvas {
   remove = () => {
     this.canvas.remove()
   }
-}
-
-type BrushEventPosition = {
-  canvasX: number
-  canvasY: number
-  gridX: number
-  gridY: number
 }

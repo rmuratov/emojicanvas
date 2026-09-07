@@ -2,7 +2,7 @@ import { Picker } from 'emoji-picker-element'
 import { RefObject, useEffect } from 'react'
 
 export function useEmojiPicker(
-  ref: RefObject<Picker | null>,
+  ref: RefObject<null | Picker>,
   onEmojiClick?: (emojiCode: string) => void,
 ) {
   // TODO: Fix adding meaningless callback
