@@ -1,0 +1,102 @@
+import type { Cell, CellBounds, Emoji } from './types'
+
+export type SceneData = { cells: Record<string, Emoji> }
+
+/**
+ * Sparse storage for an unbounded grid: a key exists only where a cell has
+ * been drawn. There is no canvas size and no filler — an absent key simply
+ * means "empty", and coordinates may be any integers, including negative.
+ */
+export class Scene {
+  private cells = new Map<string, Emoji>()
+
+  get size(): number {
+    return this.cells.size
+  }
+
+  /**
+   * Smallest rectangle containing every filled cell, or null when the scene
+   * is empty. Computed on demand rather than maintained incrementally,
+   * because erasing an outermost cell would force a full recount anyway.
+   */
+  bounds(): CellBounds | null {
+    if (this.cells.size === 0) return null
+
+    let maxX = -Infinity
+    let maxY = -Infinity
+    let minX = Infinity
+    let minY = Infinity
+
+    for (const key of this.cells.keys()) {
+      const { x, y } = parseKey(key)
+
+      if (x > maxX) maxX = x
+      if (x < minX) minX = x
+      if (y > maxY) maxY = y
+      if (y < minY) minY = y
+    }
+
+    return { maxX, maxY, minX, minY }
+  }
+
+  clear(): void {
+    this.cells.clear()
+  }
+
+  *entries(): IterableIterator<[Cell, Emoji]> {
+    for (const [key, value] of this.cells) {
+      yield [parseKey(key), value]
+    }
+  }
+
+  get(x: number, y: number): Emoji | undefined {
+    return this.cells.get(keyOf(x, y))
+  }
+
+  has(x: number, y: number): boolean {
+    return this.cells.has(keyOf(x, y))
+  }
+
+  static fromJSON(data: SceneData): Scene {
+    const scene = new Scene()
+
+    for (const [key, value] of Object.entries(data.cells)) {
+      scene.cells.set(key, value)
+    }
+
+    return scene
+  }
+
+  toJSON(): SceneData {
+    return { cells: Object.fromEntries(this.cells) }
+  }
+
+  /**
+   * Low-level write. Only operations.ts and StrokeRecorder call this —
+   * every other consumer treats the scene as read-only, so that undo can
+   * rely on every change having passed through an operation.
+   */
+  writeCell(x: number, y: number, value: Emoji | undefined): void {
+    const key = keyOf(x, y)
+
+    if (value === undefined) {
+      this.cells.delete(key)
+      return
+    }
+
+    this.cells.set(key, value)
+  }
+}
+
+function keyOf(x: number, y: number): string {
+  return `${x},${y}`
+}
+
+function parseKey(key: string): Cell {
+  const comma = key.indexOf(',')
+
+  return {
+    x: Number(key.slice(0, comma)),
+    y: Number(key.slice(comma + 1)),
+  }
+}
