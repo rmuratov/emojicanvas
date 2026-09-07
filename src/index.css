@@ -1,1 +1,10 @@
 @import 'tailwindcss';
+
+/* Tailwind 4's automatic source detection scans the whole repo by
+   default, including prose in docs/config, and pulls incidental
+   English-word matches into dead utility classes that ship in the
+   built CSS. Exclude the non-source documentation and CI config. */
+@source not '../docs';
+@source not '../README.md';
+@source not '../CLAUDE.md';
+@source not '../.github';
