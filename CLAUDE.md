@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Ongoing work
+
+A multi-plan rework of the drawing engine is in progress on the `foundation` branch.
+Before starting anything, read `docs/superpowers/PROGRESS.md` — it records what is done,
+which decisions are settled and must not be relitigated, and what comes next. The design
+authority is `docs/superpowers/specs/2026-09-07-foundation-design.md`.
+
 ## Commands
 
 ```shell
