@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm ci
 npm run dev      # vite --host; app is at http://localhost:5173/emojicanvas/ (note the base path)
 npm run build    # tsc (typecheck, noEmit) && vite build
-npm run lint     # eslint src --ext ts,tsx --max-warnings 0
+npm run lint     # eslint src --max-warnings 0
 npm test         # vitest run: a `node` project (pure logic in src/core, src/tools) and a `browser` project (Playwright + Chromium)
 npm run preview  # serve the production build
 ```
