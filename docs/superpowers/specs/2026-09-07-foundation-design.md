@@ -576,6 +576,23 @@ Vitest 5, два проекта в одном конфиге.
     отдельная задача (Task 4), выполнен откат на `typescript@^5.9.3`, на котором
     `tsc`, `build` и `lint` проходят чисто. Решение о TypeScript 7 стоит пересмотреть
     после обновления `typescript-eslint` в Task 4.
+  - *Повторная проверка (Task 4, 2026-09-07):* после миграции на ESLint 10 flat
+    config и `typescript-eslint@8.69.0` попытка повторена: `npm install -D
+    typescript@^7.0.0 --legacy-peer-deps`, затем `npm run build` и `npm run lint`.
+    `tsc` (v7.0.2) и `vite build` снова прошли без ошибок и без изменений в
+    исходниках. `npm run lint` на этот раз упал не из-за краша парсера, а из-за
+    явной защиты в самом `typescript-eslint`: `Error: typescript-eslint does not
+    support TS 7.0.` с сообщением "Please see
+    https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
+    to run typescript-eslint using the TS 6 API. See also
+    https://github.com/typescript-eslint/typescript-eslint/issues/10940 for
+    tracking typescript-eslint's support for TS >=7.1". Это осознанный отказ
+    пакета работать с TS 7.0.x (issue #10940 отслеживает будущую поддержку TS
+    ≥7.1), а не случайная несовместимость версии парсера, как было в Task 3.
+    Выполнен откат на `typescript@^5.9.3` (`npm install -D typescript@^5.9.0
+    --legacy-peer-deps`), после которого `build` и `lint` снова проходят чисто.
+    Решение о TypeScript 7 стоит пересмотреть повторно, когда `typescript-eslint`
+    объявит поддержку TS ≥7.1 (см. issue #10940).
 - **Tailwind 4** — конфигурация переехала в CSS. Вёрстка простая, утилитарные классы
   проекта стабильны между версиями, но внешний вид проверяется глазами после миграции.
 - **Vitest browser mode** требует установки браузеров Playwright, в том числе в CI —
