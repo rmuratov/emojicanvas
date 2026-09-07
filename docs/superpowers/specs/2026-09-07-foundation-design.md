@@ -569,6 +569,13 @@ Vitest 5, два проекта в одном конфиге.
 - **TypeScript 7** — новый нативный компилятор. Совместимость с `typescript-eslint`
   проверяется на шаге 1. Если не работает — откат на TypeScript 5.9, остальной план
   не меняется.
+  - *Итог проверки (Task 3, 2026-09-07):* `tsc --noEmit` и `npm run build` на
+    TypeScript 7.0.2 прошли без ошибок, но `npm run lint` упал — `@typescript-eslint/parser`
+    5.61.0 не смог загрузить парсер (`TypeError: Cannot read properties of undefined
+    (reading 'BarBarToken')` в `typescript-estree`). Поскольку миграция ESLint —
+    отдельная задача (Task 4), выполнен откат на `typescript@^5.9.3`, на котором
+    `tsc`, `build` и `lint` проходят чисто. Решение о TypeScript 7 стоит пересмотреть
+    после обновления `typescript-eslint` в Task 4.
 - **Tailwind 4** — конфигурация переехала в CSS. Вёрстка простая, утилитарные классы
   проекта стабильны между версиями, но внешний вид проверяется глазами после миграции.
 - **Vitest browser mode** требует установки браузеров Playwright, в том числе в CI —
