@@ -1,18 +1,1 @@
 @import 'tailwindcss';
-
-/*
- * Tailwind 4 changed the Preflight default border colour from
- * gray-200 (#e5e7eb) to `currentColor`. Restore the old default so the
- * `border` utility on <Tool> buttons keeps its original light-gray
- * appearance instead of picking up the button's text colour.
- * https://tailwindcss.com/docs/upgrade-guide#default-border-color
- */
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: #e5e7eb;
-  }
-}
