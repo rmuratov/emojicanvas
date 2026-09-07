@@ -40,5 +40,5 @@ Emoji rendering inside a cell uses hard-coded `emojiOffsetInsideCellX/Y` nudges.
 
 - Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
 - `eslint-plugin-perfectionist` (`recommended-natural`) is on: object keys, JSX props, interface members, imports and exports must be sorted naturally. `perfectionist/sort-classes` is disabled, so class members are free-form. Lint runs with `--max-warnings 0`, so a stray unsorted prop fails the build.
-- Styling is Tailwind utility classes inline; `src/index.css` is just a single `@import 'tailwindcss'` (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).
+- Styling is Tailwind utility classes inline; `src/index.css` is a Tailwind import with `@source not` directives excluding prose files to prevent dead utility classes (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).
 - The README's TODO list is the roadmap (fill/line/rect tools, import/save, trimming empty space on export, faster brush switching).
