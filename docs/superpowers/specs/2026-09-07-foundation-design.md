@@ -482,8 +482,12 @@ class Editor {
 Структурные следствия:
 
 - `.eslintrc.cjs` → `eslint.config.js` (flat config). Правила сохраняются по смыслу:
-  `perfectionist` в режиме natural, `import/newline-after-import`, отключённый
-  `perfectionist/sort-classes`.
+  `perfectionist` в режиме natural, отключённый `perfectionist/sort-classes`,
+  `react/boolean-prop-naming`.
+- `eslint-plugin-import` и `eslint-import-resolver-typescript` удаляются: сортировку
+  импортов делает `perfectionist`, разрешение путей — TypeScript, а поддержка flat config
+  у этого плагина исторически проблемная. Единственное использовавшееся правило,
+  `import/newline-after-import`, относится к форматированию и остаётся за Prettier.
 - Tailwind 4 конфигурируется из CSS. `tailwind.config.js` и `postcss.config.js`
   удаляются, подключается плагин Tailwind для Vite, директивы в `index.css` заменяются
   на импорт Tailwind.
