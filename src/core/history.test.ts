@@ -119,6 +119,10 @@ describe('History', () => {
 
     applyOperation(scene, op)
     history.commit(op, erase(0))
+    history.undo(scene)
+
+    expect(history.canRedo).toBe(true)
+
     history.clear()
 
     expect(history.canRedo).toBe(false)
