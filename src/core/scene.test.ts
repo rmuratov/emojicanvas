@@ -95,15 +95,6 @@ describe('Scene', () => {
     ])
   })
 
-  it('clears every cell', () => {
-    const scene = new Scene()
-    scene.writeCell(0, 0, 'a')
-    scene.clear()
-
-    expect(scene.size).toBe(0)
-    expect(scene.bounds()).toBeNull()
-  })
-
   it('survives a serialisation round trip', () => {
     const scene = new Scene()
     scene.writeCell(-3, 4, '❤️')

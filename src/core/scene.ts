@@ -39,10 +39,6 @@ export class Scene {
     return { maxX, maxY, minX, minY }
   }
 
-  clear(): void {
-    this.cells.clear()
-  }
-
   *entries(): IterableIterator<[Cell, Emoji]> {
     for (const [key, value] of this.cells) {
       yield [parseKey(key), value]

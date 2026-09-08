@@ -95,6 +95,22 @@ export function applyOperation(scene: Scene, op: Operation): void {
 }
 
 /**
+ * Builds an operation that erases every filled cell in the scene. This is
+ * the only sanctioned way to clear a scene: writing through an operation,
+ * rather than through a dedicated bypass, keeps clearing undoable like
+ * every other change.
+ */
+export function createClearOperation(scene: Scene): Operation {
+  const changes: CellChange[] = []
+
+  for (const [{ x, y }] of scene.entries()) {
+    changes.push({ value: undefined, x, y })
+  }
+
+  return { changes, label: 'clear' }
+}
+
+/**
  * Builds the operation that undoes `op`. Must be called BEFORE `op` is
  * applied, because it reads the values the operation is about to replace.
  */
