@@ -21,16 +21,22 @@ npm run dev
 - [x] Clear action
 - [x] Eraser
 - [x] Export/Copy tool
+- [x] Better alignment of emojis
+- [x] Option to trim surrounding empty space while exporting
+- [x] Undo/redo
+- [x] Pan and zoom on an unbounded canvas
 - [ ] Fast switch back to current brush (do not open picker every time)
 - [ ] More tools: fill, line, rectangle, circle
-- [ ] Better alignment of emojis. [See details](#better-positioning-on-the-canvas).
 - [ ] Better solution for filler. [See details](#filler).
 - [ ] Import/Save.
-- [ ] Option to trim surrounding empty space while exporting.
 
-### Better positioning on the canvas
+### Positioning on the canvas
 
-Right now, the drawing looks acceptable only on desktop browsers on macOS (Apple-style emojis). On other OSes, emojis might have different widths and heights; hence, they can overflow their cells, and the overall painting would look ugly. A better approach should be implemented to address these inconsistencies (meaning, preferably, no hard-coded imperative by-pixel positioning).
+This used to look acceptable only on macOS, where the Apple emoji metrics happened to
+match the hard-coded per-glyph pixel nudges; elsewhere glyphs overflowed their cells.
+Each glyph is now measured and centred on its own bounding box, and shrunk if it would not
+fit, so no by-pixel constants are involved and emoji with a variation selector line up
+with native ones.
 
 ### Filler
 

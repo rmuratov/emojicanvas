@@ -15,17 +15,20 @@ All work happens on a single branch, **`foundation`** (44 commits), to be merged
 |---|---|
 | 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, reviewed |
 | 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
-| 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Plan written**, not started |
+| 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Done**; all 8 tasks executed |
+| 4. Performance: benchmarks, real-device measurement, LOD thresholds | **Plan not written** — next step |
 
 ## What already works
 
 `npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all green
-from a clean state. **105 tests across 10 files.**
+from a clean state. **184 tests across 15 files.**
 
-The app in the browser is untouched: it still runs the OLD engine
-(`src/lib/EmojiCanvas.ts`) and looks and behaves exactly as it did before this work
-started. Nothing built in plan 2 is imported by the running app yet — that is plan 3's
-job.
+**The app now runs on the new engine.** `src/lib/EmojiCanvas.ts` and `useEmojiCanvas` are
+deleted; there is one engine, not two. Verified by hand in a browser as well as by tests:
+a single tap draws, fast drags leave no gaps, grid lines survive being drawn over, the
+colour and block levels of detail engage at their thresholds, zoom clamps at both ends,
+reset view restores, the picker changes the brush, and `❤️` and `😀` sit at the same
+height. No console errors.
 
 Toolchain: React 19.2, Vite 8.2, TypeScript 5.9.3, ESLint 10.10 (flat config),
 Tailwind 4.3, Prettier 3.9, Vitest 5 with two projects (`node` for pure logic,
@@ -43,6 +46,17 @@ The engine core, all pure logic with zero DOM:
 | `core/line.ts` | `cellsBetween`, Bresenham, both endpoints, coordinates floored |
 | `core/export/text.ts` | Scene → text, cropped to the drawing, filler inside the box |
 | `tools/` | `Tool` interface with `onDown`/`onMove`/`onUp`/`onCancel`; brush and eraser |
+
+Plan 3 added the layers above it:
+
+| Module | What it does |
+|---|---|
+| `render/theme.ts` | Colours, base cell size, font stack, level-of-detail thresholds, `levelOfDetail` |
+| `render/glyphAtlas.ts` | Rasterises each emoji once per fixed step (16/32/64/128); centres on measured metrics; caches average colour |
+| `render/scene.ts` | `renderScene` — one frame into a supplied context, confined to `visibleBounds` |
+| `input/pointer.ts` | Pointer Events; one pointer draws, two navigate; wheel and middle-button drag |
+| `editor/Editor.ts` | The facade: canvas, camera, rAF loop, tools, `useSyncExternalStore` contract |
+| `hooks/useEditor.ts`, `hooks/useEditorState.ts` | React bridge, StrictMode-safe |
 
 ## Settled decisions
 
@@ -62,6 +76,13 @@ once reached the source — an implementer copied them out of a plan.
 for this reason: it was a second, non-undoable path, and `Editor.clear()` would have
 made clearing the one action undo could not reverse. Clearing is now
 `createClearOperation`.
+
+**The input layer reports screen pixels, not cells.** The spec sketched
+`onDrawStart(cell: Cell)`, but converting needs the camera and the camera lives in the
+`Editor` — giving `pointer.ts` one would make `input/` depend on `core/camera` and
+`render/theme`. The single `screenToCell` call sits in the `Editor` instead. For the same
+reason `zoomBy` takes two anchor numbers rather than an anchor object, matching
+`camera.zoomAt` and avoiding an allocation per wheel notch.
 
 **A serialised scene with no `version` is version 1.** `fromJSON` rejects a *stated*
 version it does not understand — a future format may not be readable at all — but an
@@ -97,54 +118,72 @@ on purpose.
 
 None block work. Address before merging `foundation` into `main`.
 
-1. Bundle grew 192.52 kB → 234.83 kB (64.11 → 75.56 gzip) after React 19 and Vite 8.
-   No size budget was ever set.
+1. Bundle is now 243.62 kB (78.75 gzip), up from 192.52 kB (64.11) before this work.
+   No size budget was ever set. Set one before merging.
 2. `settings.react.version` is hardcoded `'19.2'` in `eslint.config.js` because the
    plugin's auto-detect crashes on ESLint 10. Will go stale silently at the next major.
 3. `package-lock.json`'s root `packages[""]` does not echo `overrides`. `npm ci` works.
-4. The Tool button's border colour is a literal, not a theme token. Tokens arrive in
-   `render/theme.ts` in plan 3.
-5. `.px-1` remains in the built CSS, from a commented-out `<dialog>` in `App.tsx`. It
-   disappears when plan 3 rewrites that component.
+4. The Tool button's border colour is still a literal. `render/theme.ts` exists now, but
+   it holds canvas colours only; the React shell has no token source.
+5. ~~`.px-1` in the built CSS from a commented-out `<dialog>`.~~ **Retired** — plan 3
+   deleted that markup.
 6. Two high-severity ReDoS advisories in transitive **dev** dependencies.
    `npm audit --omit=dev` reports zero, so nothing reaches users.
 7. `tsconfig.node.json` includes only `vite.config.ts`; `vitest.config.ts` is
    type-checked by nothing.
 8. `.prettierrc` still carries the deprecated `jsxBracketSameLine`.
 
-## Requirements for plan 3
+## Deferred out of plan 3
 
-- **Pointer input must floor screen coordinates to whole cells** via `screenToCell`
-  before calling tools. `cellsBetween` is protected by its own rounding, but that is a
-  safety net, not the intended path.
-- **Do not call `scene.bounds()` per frame.** It is an O(n) scan of every drawn cell.
-  The renderer needs `visibleBounds` plus `get`, never `bounds()`. In particular,
-  `getSnapshot().isEmpty` must be `scene.size === 0`, because `useSyncExternalStore`
-  calls `getSnapshot` on every render.
-- **Cancelling a stroke takes two calls:** `recorder.rollback(scene)` and then
-  `tool.onCancel(ctx)`. The recorder restores the scene; the tool forgets its last
-  cell. Neither does the other's job.
-- **`Editor` must call `history.clear()`** when loading a scene from a link or file —
-  otherwise undo would walk into a scene the operations were never recorded against.
-- **The glyph-centring formula is verified** against real Chromium metrics
-  (`width` 20.0098, `actualBoundingBoxAscent` 21.5186, `actualBoundingBoxLeft` −0.4395,
-  `actualBoundingBoxRight` 19.6436). The metrics are non-zero; the approach works.
-- **Brush and eraser share ~20 identical lines.** Leave it until line, rectangle and
-  fill land, then factor all of them together.
+Nothing here blocks plan 4.
+
+1. **Space-plus-drag panning.** The spec lists it; plan 3 shipped wheel-pan and
+   middle-button-drag instead. A `window`-level key listener owned by a canvas module
+   needs its own lifecycle design.
+2. **`toMatchScreenshot` baselines.** Deferred on purpose: a redesign is coming and the
+   baselines would go stale on its first iteration.
+3. **Factoring brush and eraser together.** They share about twenty identical lines. Wait
+   for line, rectangle and fill, then factor all of them at once.
+4. **Loading a scene from a link or file.** When it lands, `Editor` must call
+   `history.clear()` — undo would otherwise walk into a scene the operations were never
+   recorded against. Nothing loads a scene today, so `Editor` has no load path at all.
+5. **Mobile layout was checked only on a desktop viewport.** The toolbar-versus-picker
+   overlap and the 44px tap targets still want a real device.
+
+## Invariants the code now holds
+
+Each of these was a requirement written before plan 3 and is now satisfied in code. They
+are recorded because breaking one is easy and the breakage is quiet.
+
+- **Pointer coordinates are floored to whole cells** via `screenToCell`, in the `Editor`
+  and nowhere else. `cellsBetween` rounds too, but that is a safety net, not the path.
+- **`scene.bounds()` is never called per frame.** The renderer uses `visibleBounds` plus
+  `get`; `getSnapshot().isEmpty` is `scene.size === 0`, because `useSyncExternalStore`
+  calls `getSnapshot` on every render. `bounds()` is for text export only.
+- **Cancelling a stroke takes both calls** — `recorder.rollback(scene)` then
+  `tool.onCancel(ctx)`. Verified by mutation: dropping the rollback fails the pinch test.
+- **The glyph-centring formula is verified** against real Chromium metrics, and by
+  mutation: reverting to the old baseline-centred `fillText` fails both the centring and
+  the cell-bounds tests.
+- **`getSnapshot` returns a cached object**, replaced only when state changes. A fresh
+  object per call is an infinite render loop.
+- **Drawing does not wake React.** `onDrawMove` marks the frame dirty without notifying;
+  only state the toolbar shows triggers a notification.
 
 ## How to continue
 
-Findings 1 and 2 are cleared, so the code plan 3 builds on is proven, and plan 3 is
-written: `plans/2026-09-08-rendering-input-editor.md`, eight tasks. Execute it one task at
-a time with review between tasks.
+Plans 1 to 3 are done and the app runs on the new engine. What remains before `foundation`
+merges into `main`:
 
-Its scope is the spec's order of work, steps 4 (rendering), 5 (input — the tools half
-landed in plan 2) and 6 (editor and React port), plus removing the old engine. **Step 7 —
-benchmarks, real-device measurement and tuning the level-of-detail thresholds — is a
-separate plan 4**, together with the space-plus-drag pan gesture the plan defers on
-purpose.
-
-Two deliberate deviations from the spec are recorded in the plan's own
-"One deliberate deviation from the spec" section: the input layer reports screen pixels
-rather than cells (the `Editor` owns the camera, so the `screenToCell` call belongs there),
-and `zoomBy` takes two anchor numbers rather than an anchor object.
+1. **Plan 4 — performance**, the spec's step 7. Write it from the spec's "Performance"
+   section: Vitest benchmarks in the browser project for frame time at 1x zoom and at
+   minimum zoom and for a full-screen stroke, then measurement on a real mobile device,
+   then tune the level-of-detail thresholds. **The 12px and 4px thresholds are still their
+   starting values — nothing has measured them.** A benchmark regression is a reason to
+   investigate, not to raise the threshold.
+2. **Clear plan 1's deferred findings** below. Two are already retired by plan 3: the Tool
+   button's literal border colour still stands, but `.px-1` is gone with the commented-out
+   `<dialog>`, and a bundle budget should be set now that the bundle is 243.62 kB
+   (78.75 gzip) with the new engine in it.
+3. **Finding 3 from plan 2** — the reverse-direction line test that asserts a property
+   Bresenham does not universally have. Still open, still not a blocker.

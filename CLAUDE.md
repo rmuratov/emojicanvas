@@ -28,20 +28,65 @@ Pushes to `main` auto-deploy `dist/` to GitHub Pages (`.github/workflows/vite.ya
 
 React 19 + Vite + TypeScript + Tailwind. The drawing engine is deliberately **not** React.
 
-- `src/lib/EmojiCanvas.ts` — a plain class that owns everything about drawing: it creates its own `<canvas>` inside a container element passed to the constructor, attaches its own mouse/touch listeners, and keeps a `string[][]` `matrix` as the source of truth for the picture. React never re-renders on drawing. The class throws if the container already has child nodes.
-- `src/hooks/useEmojiCanvas.ts` — the only bridge: instantiates `EmojiCanvas` on a ref, stores it in state, and mirrors erasing status into React via an `onErasingStatusChange` callback passed to the constructor.
-- `src/components/App/App.tsx` — holds UI state (selected brush, picker open) and calls imperative methods on the canvas instance (`setBrush`, `setErasingMode`, `clear`, `getDrawingAsString`).
-- `src/components/EmojiPicker` wraps the `emoji-picker-element` web component; `useEmojiPicker` attaches its `emoji-click` listener imperatively (the element is not a React component, hence the `@ts-ignore` on the `<emoji-picker>` tag).
+The engine is layered, and dependencies point strictly inward:
+`ui` → `editor` → `render`/`input`/`tools` → `core`. `core` imports nothing from the other
+layers and never touches the DOM, which is why it is tested in Vitest's `node` project
+while everything else runs in real Chromium.
 
-Components live in `src/components/<Name>/<Name>.tsx` with an `index.ts` barrel; `src/hooks` and `src/lib` re-export through barrels too. Imports use relative paths (no path aliases).
+- `src/core/` — pure data and logic. `scene.ts` is sparse storage of drawn cells on an
+  **unbounded** grid: a key present means the cell is drawn, absent means empty, and
+  coordinates may be any integers including negative ones. There is no canvas size and no
+  fixed cell count. `operations.ts` is the single mutation path, each operation able to
+  build its inverse; `history.ts` stacks those for undo/redo; `camera.ts` maps screen
+  pixels to cells and back; `line.ts` interpolates between two cells; `export/text.ts`
+  turns a scene into a string.
+- `src/render/` — knows about canvas, not about React. `glyphAtlas.ts` rasterises each
+  emoji once per fixed size step and hands out the buffer, so drawing is `drawImage`
+  rather than `fillText`. `scene.ts` draws one frame into a **supplied** context, so raster
+  export later is a call with a different context, not a second rendering path.
+  `theme.ts` holds colours, base cell size, font stack and the level-of-detail thresholds.
+- `src/input/pointer.ts` — Pointer Events for mouse, finger and stylus in one path.
+  Reports **screen pixels**, never cells: the camera lives in the `Editor`, so the `Editor`
+  does the conversion.
+- `src/tools/` — a `Tool` is `onDown`/`onMove`/`onUp`/`onCancel`. Tools write through a
+  `StrokeRecorder` and never touch history.
+- `src/editor/Editor.ts` — the facade that assembles the layers and owns their lifecycle:
+  the canvas element, the `ResizeObserver`, the `requestAnimationFrame` loop, the camera
+  and the tools. `destroy()` undoes everything the constructor set up.
+- `src/hooks/useEditor.ts` creates one `Editor` per mount; `useEditorState.ts` reads its
+  state through `useSyncExternalStore`. React holds no copy of engine state.
+- `src/components/EmojiPicker` wraps the `emoji-picker-element` web component;
+  `useEmojiPicker` attaches and removes its `emoji-click` listener. The tag is typed in
+  `src/types/emoji-picker.d.ts`.
 
-### Two domain concepts that drive the code
+Components live in `src/components/<Name>/<Name>.tsx` with an `index.ts` barrel; `src/hooks`,
+`src/core`, `src/render`, `src/input` and `src/editor` re-export through barrels too.
+Imports use relative paths (no path aliases).
 
-**The filler.** Empty cells are not spaces — they hold `〰️` (`this.filler`). Messaging apps trim real spaces, which destroys the art on paste. Erasing is implemented as "set the brush to the filler", so `isErasing()` is just `brush === filler`, and export writes the filler characters out verbatim. Changing the filler changes what erased cells look like in both the canvas and the exported text.
+### Three ideas that drive the code
 
-**Grid vs. pixel coordinates.** `getBrushEventPosition` converts a pointer event into both grid indices (`gridX`/`gridY`, indexing `matrix`) and top-left pixel coordinates of that cell. Note `matrix[column][row]` — column-major, so `getDrawingAsString` iterates rows in the outer loop and indexes `matrix[j][i]`. Cell geometry (`cellWidth`, `cellHeight`, `borderWidth`, `columnsCount`, `rowsCount`) plus the DPR scaling in `initCanvas` all interlock; canvas size is derived from them, never hard-coded.
+**Every write to the scene goes through an operation.** That is what makes undo total.
+There is deliberately no `Scene.clear()` — clearing is `createClearOperation`, so it is
+undoable like anything else. Only `operations.ts` and `StrokeRecorder` call
+`scene.writeCell`.
 
-Emoji rendering inside a cell uses hard-coded `emojiOffsetInsideCellX/Y` nudges. This is a known weakness documented in the README — it only looks right with Apple emoji metrics, and the intended fix is a non-pixel-imperative approach.
+**The filler is an export-only concept.** Empty cells hold nothing; the scene simply has no
+key for them. `〰️` (`DEFAULT_FILLER` in `core/export/text.ts`) is written into the *text*
+for empty cells inside the drawing's bounding box, because messaging apps trim real spaces
+and that destroys the art on paste. Consequently **the eraser is a real tool that deletes
+cells**, not "a brush painting the filler", and there is no erasing mode anywhere in the
+model.
+
+**Frame cost follows window size, not drawing size.** The canvas is created at the size of
+its container, which removes the browser's canvas-area limit and means a scene with a
+million cells renders in the same time as one with a hundred. Only cells inside
+`camera.visibleBounds` are drawn. `scene.bounds()` is an O(n) scan of every drawn cell —
+it is for text export, never for a frame, and never for `getSnapshot`, which uses
+`scene.size === 0` because `useSyncExternalStore` calls it on every render.
+
+Glyphs are centred on their own measured bounding box, so emoji with a variation selector
+(`❤️` = U+2764 U+FE0F) and native ones (`😀` = U+1F600) line up. The old hard-coded
+per-glyph pixel nudges are gone.
 
 ## Conventions
 
