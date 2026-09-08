@@ -8,9 +8,10 @@ phone and the merge into `main`.
 
 ## Where we are
 
-All work happens on a single branch, **`foundation`** (63 commits), to be merged into
-`main` locally once all four plans are done. Nothing is pushed. `main` sits at
-`a11e969` and matches `origin/main` exactly.
+All work happens on a single branch, **`foundation`** (73 commits), to be merged into
+`main` locally. Nothing is pushed. `main` sits at `a11e969` and matches `origin/main`
+exactly. Verified from a clean `npm ci` on 2026-09-08: `npm run lint`,
+`npm run format:check`, `npm test` (194 tests, 16 files) and `npm run build` all pass.
 
 | Plan                                                                                          | Status                                                   |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -308,10 +309,29 @@ are recorded because breaking one is easy and the breakage is quiet.
 - **Drawing does not wake React.** `onDrawMove` marks the frame dirty without notifying;
   only state the toolbar shows triggers a notification.
 
+## Open findings from plan 4
+
+Both are recorded rather than fixed, and neither blocks the merge.
+
+1. **The worst frame is now mostly the scan, and the scan is string keys.** A full screen
+   at minimum zoom with 128,160 cells drawn costs 8.6ms, of which about 7ms is
+   `Scene.get` building a string key for every visible cell — measured by comparing the
+   whole frame against a scene whose cells are all off-screen (`blockCost.bench.ts`).
+   Removing it means keying cells by number in `core/scene.ts` and in the serialisation,
+   which puts a range limit on coordinates that the unbounded grid does not have today.
+   Worth doing only if this case ever matters: it needs a drawing that covers the entire
+   screen at minimum zoom.
+2. **The scattered-sparse block frame is 0.39ms slower than it was.** The blit costs what
+   it covers, so five hundred cells spread over a whole zoomed-out screen pay for a
+   screen-sized blit. A hybrid — fill blocks individually below some count, blit above it
+   — would remove it, at the cost of a second drawing mechanism inside one level of
+   detail. Deliberately not taken: 4% of the frame budget against half the budget saved
+   in the case that was failing. Both shapes are benchmarked, so the trade cannot change
+   quietly.
+
 ## How to continue
 
-All four plans are done and the app runs on the new engine. Two things remain before
-`foundation` merges into `main`:
+All four plans are done and the app runs on the new engine. What remains:
 
 1. **Measure on a real phone.** `npm run dev`, then open the printed network address with
    `/bench.html` on the device (the base path applies:
@@ -321,12 +341,14 @@ All four plans are done and the app runs on the new engine. Two things remain be
    desktop Safari 26 at 1470x833 and DPR 2, where all four scenarios pass with the worst
    at 9ms of 16.7ms. A phone is slower per core and usually runs at DPR 3, so that is the
    measurement that can still move a threshold. If a scenario comes
-   back over budget, investigate it — do not raise the threshold to make it fit.
+   back over budget, investigate it — do not raise the threshold to make it fit. Do this
+   in the same session as item 5 of "Deferred out of plan 3", the mobile layout check:
+   both need the same device in hand.
 2. **Merge `foundation` into `main`.** Nothing is pushed and `main` still sits at
    `a11e969`.
 
-Also still open, and unchanged by plan 4: the five items under "Deferred out of plan 3",
-and finding 3 from plan 2's review is closed.
+Also still open, and unchanged by plan 4: the five items under "Deferred out of plan 3"
+and the two findings above. Every finding from plans 1 and 2 is closed.
 
 ## Starting the next session
 
