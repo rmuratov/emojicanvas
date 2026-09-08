@@ -12,6 +12,7 @@
     "format:check": "prettier --check .",
     "preview": "vite preview",
     "test": "vitest run",
+    "bench": "vitest bench --reporter=verbose",
     "test:watch": "vitest",
     "prepare": "lefthook install || true"
   },

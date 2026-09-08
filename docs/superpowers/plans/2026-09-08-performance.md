@@ -1,0 +1,849 @@
+# Performance Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the guessed level-of-detail thresholds with measured ones, and leave
+behind a benchmark suite and a real-device measurement page that make the 16.7ms frame
+budget checkable instead of merely declared.
+
+**Architecture:** Three layers of evidence, from cheapest to most expensive. A
+deterministic draw-call test runs in CI on every push and pins the invariant that levels of
+detail actually bound the per-frame work — it measures counts, not time, so it cannot flake.
+Vitest benchmarks in the `browser` project measure real frame time in real Chromium and are
+run by hand, never in CI. A dev-only page (`bench.html`) runs the same scenario code on a
+real phone, because `devicePixelRatio` and mobile GPU behaviour are not reproducible in an
+emulator. The scenario fixtures live in one module, `src/bench/scenarios.ts`, so all three
+measure the same thing.
+
+**Tech Stack:** Vitest 5 (`browser` project, Playwright + Chromium), `vitest bench`
+(Tinybench), Vite 8 dev server for the device page.
+
+**Spec:** `docs/superpowers/specs/2026-09-07-foundation-design.md` — sections
+"Performance", "Levels of detail", "Mobile devices", "Tests", step 7 of "Order of work".
+
+## Global Constraints
+
+- **Everything in the repository is English** — code, identifiers, comments, test names,
+  commit messages, documents.
+- The frame budget is **60fps, 16.7ms per frame**, on mobile too.
+- **A benchmark regression is a reason to investigate, not to raise the threshold.**
+- Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
+  `eslint-plugin-perfectionist` sorts object keys, imports, exports, interface members
+  naturally; `npm run lint` runs with `--max-warnings 0`.
+- Layering: dependencies point inward, `ui` → `editor` → `render`/`input`/`tools` → `core`.
+  `src/bench/` is a new consumer at the `editor` level: it may import from `core`, `render`
+  and `tools`, and nothing may import it.
+- `vitest.config.ts` routes `src/{core,tools}/**/*.test.ts` to the `node` project and
+  everything else to `browser`. A path matching both runs twice.
+- `npm test` must not get slower: benchmarks are `vitest bench`, a separate command.
+- Every write to a scene goes through an operation. Benchmark fixtures build scenes with
+  `applyOperation`, never with `scene.writeCell`.
+
+---
+
+### Task 1: Benchmark harness and the three benchmarks the spec names
+
+**Files:**
+
+- Modify: `vitest.config.ts` (benchmark include per project)
+- Modify: `package.json` (`bench` script)
+- Create: `src/bench/scenarios.ts`
+- Create: `src/render/scene.bench.ts`
+
+**Interfaces:**
+
+- Consumes: `renderScene(ctx, scene, opts)` from `src/render/scene.ts`; `GlyphAtlas`;
+  `DEFAULT_THEME`, `Theme`; `createCamera`, `cellSizeAt`, `visibleBounds`, `MIN_ZOOM`;
+  `Scene`, `applyOperation`; `createBrushTool`, `StrokeRecorder`.
+- Produces, from `src/bench/scenarios.ts`:
+  - `BENCH_EMOJI: readonly Emoji[]`
+  - `type Viewport = { height: number; width: number }`
+  - `DESKTOP_VIEWPORT: Viewport`, `PHONE_VIEWPORT: Viewport`
+  - `createSurface(viewport: Viewport, dpr: number): CanvasRenderingContext2D`
+  - `cameraForCellSize(theme: Theme, cellSizePx: number): Camera`
+  - `filledViewport(camera: Camera, theme: Theme, viewport: Viewport): Scene`
+  - `frameScenario(options: { cellSizePx: number; dpr?: number; theme?: Theme; viewport?: Viewport }): { draw: () => void; cells: number }`
+  - `strokeScenario(options: { dpr?: number; theme?: Theme; viewport?: Viewport }): { draw: () => void; steps: number }`
+
+- [ ] **Step 1: Write the scenario fixtures**
+
+Create `src/bench/scenarios.ts`:
+
+```ts
+import type { Camera } from '../core/camera'
+import type { Emoji } from '../core/types'
+import type { Theme } from '../render/theme'
+
+import { cellSizeAt, createCamera, visibleBounds } from '../core/camera'
+import { applyOperation } from '../core/operations'
+import { Scene } from '../core/scene'
+import { GlyphAtlas } from '../render/glyphAtlas'
+import { renderScene } from '../render/scene'
+import { DEFAULT_THEME } from '../render/theme'
+import { createBrushTool } from '../tools/brush'
+import { StrokeRecorder } from '../core/operations'
+
+export type Viewport = { height: number; width: number }
+
+/**
+ * A dozen glyphs rather than one, so the atlas holds a realistic number of
+ * buffers and the average-colour cache is exercised the way a real drawing
+ * exercises it. One repeated emoji would measure a warmer cache than any
+ * user ever gets.
+ */
+export const BENCH_EMOJI: readonly Emoji[] = [
+  '❤️',
+  '😀',
+  '🌈',
+  '🔥',
+  '🍕',
+  '🐙',
+  '⭐',
+  '🌊',
+  '🎩',
+  '🧩',
+  '🚀',
+  '🥑',
+]
+
+export const DESKTOP_VIEWPORT: Viewport = { height: 800, width: 1440 }
+/** A common phone in CSS pixels; DPR is a separate argument. */
+export const PHONE_VIEWPORT: Viewport = { height: 800, width: 390 }
+
+/**
+ * A camera whose zoom renders cells at exactly the requested size. The
+ * benchmarks sweep cell size, not zoom, because the level-of-detail
+ * thresholds are expressed in rendered pixels.
+ */
+export function cameraForCellSize(theme: Theme, cellSizePx: number): Camera {
+  return { ...createCamera(), zoom: cellSizePx / theme.baseCellSize }
+}
+
+/**
+ * A context of the given size, scaled for the device pixel ratio exactly as
+ * the Editor scales its own canvas — the frame cost of a phone at DPR 3 is
+ * the number this whole plan exists to find out.
+ */
+export function createSurface(
+  viewport: Viewport,
+  dpr: number,
+): CanvasRenderingContext2D {
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(viewport.width * dpr)
+  canvas.height = Math.round(viewport.height * dpr)
+
+  const ctx = canvas.getContext('2d')!
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  return ctx
+}
+
+/** Every visible cell drawn — the worst case a frame can be asked to render. */
+export function filledViewport(
+  camera: Camera,
+  theme: Theme,
+  viewport: Viewport,
+): Scene {
+  const scene = new Scene()
+  const bounds = visibleBounds(
+    camera,
+    theme.baseCellSize,
+    viewport.width,
+    viewport.height,
+  )
+  const changes = []
+
+  let i = 0
+
+  for (let y = bounds.minY; y <= bounds.maxY; y++) {
+    for (let x = bounds.minX; x <= bounds.maxX; x++) {
+      changes.push({ value: BENCH_EMOJI[i++ % BENCH_EMOJI.length], x, y })
+    }
+  }
+
+  applyOperation(scene, { changes, label: 'bench' })
+
+  return scene
+}
+
+/**
+ * One full frame of a full screen at the given rendered cell size, ready to
+ * be timed. The atlas is warmed first: the first frame pays for rasterising
+ * every glyph, and that cost belongs to a different measurement than the
+ * steady-state frame time.
+ */
+export function frameScenario(options: {
+  cellSizePx: number
+  dpr?: number
+  theme?: Theme
+  viewport?: Viewport
+}): { cells: number; draw: () => void } {
+  const theme = options.theme ?? DEFAULT_THEME
+  const viewport = options.viewport ?? DESKTOP_VIEWPORT
+  const dpr = options.dpr ?? 1
+  const camera = cameraForCellSize(theme, options.cellSizePx)
+  const scene = filledViewport(camera, theme, viewport)
+  const ctx = createSurface(viewport, dpr)
+  const atlas = new GlyphAtlas(dpr, theme.fontStack)
+  const draw = () =>
+    renderScene(ctx, scene, {
+      atlas,
+      camera,
+      height: viewport.height,
+      theme,
+      width: viewport.width,
+    })
+
+  draw()
+
+  return { cells: scene.size, draw }
+}
+
+/**
+ * A stroke drawn diagonally across the whole screen, redrawing after every
+ * pointer step, which is what the app actually does while a finger moves.
+ * Measures the interactive path — recording plus redraw — not rendering
+ * alone.
+ */
+export function strokeScenario(
+  options: {
+    dpr?: number
+    theme?: Theme
+    viewport?: Viewport
+  } = {},
+): { draw: () => void; steps: number } {
+  const theme = options.theme ?? DEFAULT_THEME
+  const viewport = options.viewport ?? DESKTOP_VIEWPORT
+  const dpr = options.dpr ?? 1
+  const camera = createCamera()
+  const ctx = createSurface(viewport, dpr)
+  const atlas = new GlyphAtlas(dpr, theme.fontStack)
+  const cellSize = cellSizeAt(theme.baseCellSize, camera.zoom)
+  const steps = Math.round(viewport.width / cellSize)
+  const tool = createBrushTool()
+
+  const draw = () => {
+    const scene = new Scene()
+    const recorder = new StrokeRecorder()
+    const ctxTool = { brush: BENCH_EMOJI[0], recorder, scene }
+
+    tool.onDown({ x: 0, y: 0 }, ctxTool)
+
+    for (let i = 1; i <= steps; i++) {
+      tool.onMove(
+        { x: i, y: Math.round((i * viewport.height) / viewport.width) },
+        ctxTool,
+      )
+      renderScene(ctx, scene, {
+        atlas,
+        camera,
+        height: viewport.height,
+        theme,
+        width: viewport.width,
+      })
+    }
+
+    tool.onUp(ctxTool)
+    recorder.commit('bench')
+  }
+
+  draw()
+
+  return { draw, steps }
+}
+```
+
+No barrel: `src/bench/` is a leaf that nothing else imports, and the repository's other
+barrels exist for layers that are consumed. An unused re-export file would be dead code.
+
+- [ ] **Step 2: Route benchmarks to the browser project**
+
+In `vitest.config.ts`, give each project an explicit `benchmark.include`. Without this,
+Vitest's default benchmark glob matches in both projects and every `.bench.ts` runs twice —
+once in `node`, where `document` does not exist.
+
+```ts
+      {
+        test: {
+          benchmark: { include: ['src/{core,tools}/**/*.bench.ts'] },
+          environment: 'node',
+          include: ['src/{core,tools}/**/*.test.ts'],
+          name: 'node',
+        },
+      },
+      {
+        test: {
+          benchmark: {
+            exclude: ['src/{core,tools}/**/*.bench.ts'],
+            include: ['src/**/*.bench.ts'],
+          },
+          browser: { ... unchanged ... },
+          exclude: ['src/{core,tools}/**/*.test.ts'],
+          include: ['src/**/*.test.{ts,tsx}'],
+          name: 'browser',
+        },
+      },
+```
+
+Add to `package.json` scripts, keeping the existing order of the test scripts:
+
+```json
+    "bench": "vitest bench --reporter=verbose",
+```
+
+The reporter is not optional: the default reporter prints pass/fail and no numbers, so a
+`bench` script without it reports nothing.
+
+- [ ] **Step 3: Write the three benchmarks the spec names**
+
+Create `src/render/scene.bench.ts`. **Vitest 5 has no top-level `bench` export**: a
+benchmark is registered through the `bench` fixture of an ordinary test, and
+`bench.compare(...)` runs a group and prints one table for it. Importing `bench` from
+`vitest` fails with `does not provide an export named 'bench'`.
+
+```ts
+import { test } from 'vitest'
+
+import {
+  DESKTOP_VIEWPORT,
+  frameScenario,
+  PHONE_VIEWPORT,
+  strokeScenario,
+} from '../bench/scenarios'
+import { MIN_ZOOM } from '../core/camera'
+import { DEFAULT_THEME } from './theme'
+
+const MIN_ZOOM_CELL_PX = DEFAULT_THEME.baseCellSize * MIN_ZOOM
+
+test('frame time for a full screen', async ({ bench }) => {
+  const desktop = frameScenario({ cellSizePx: DEFAULT_THEME.baseCellSize })
+  const desktopZoomedOut = frameScenario({ cellSizePx: MIN_ZOOM_CELL_PX })
+  const phone = frameScenario({
+    cellSizePx: DEFAULT_THEME.baseCellSize,
+    dpr: 3,
+    viewport: PHONE_VIEWPORT,
+  })
+  const phoneZoomedOut = frameScenario({
+    cellSizePx: MIN_ZOOM_CELL_PX,
+    dpr: 3,
+    viewport: PHONE_VIEWPORT,
+  })
+
+  await bench.compare(
+    bench(`desktop, 1x zoom, ${desktop.cells} cells`, () => {
+      desktop.draw()
+    }),
+    bench(`desktop, minimum zoom, ${desktopZoomedOut.cells} cells`, () => {
+      desktopZoomedOut.draw()
+    }),
+    bench(`phone at DPR 3, 1x zoom, ${phone.cells} cells`, () => {
+      phone.draw()
+    }),
+    bench(`phone at DPR 3, minimum zoom, ${phoneZoomedOut.cells} cells`, () => {
+      phoneZoomedOut.draw()
+    }),
+  )
+})
+
+test('time for a stroke across the whole screen', async ({ bench }) => {
+  const desktop = strokeScenario({ viewport: DESKTOP_VIEWPORT })
+  const phone = strokeScenario({ dpr: 3, viewport: PHONE_VIEWPORT })
+
+  await bench.compare(
+    bench(`desktop, ${desktop.steps} steps, a redraw each`, () => {
+      desktop.draw()
+    }),
+    bench(`phone at DPR 3, ${phone.steps} steps, a redraw each`, () => {
+      phone.draw()
+    }),
+  )
+})
+```
+
+- [ ] **Step 4: Run the benchmarks and confirm they measure something**
+
+Run: `npm run bench -- --reporter=verbose` — the default reporter prints no table
+Expected: six benchmarks report times under the `browser (chromium)` project, and
+`npm test` still reports 186 passing tests without running any benchmark.
+
+- [ ] **Step 5: Verify lint, types and formatting**
+
+Run: `npm run lint && npm run format:check && npm run build`
+Expected: all pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add vitest.config.ts package.json src/bench src/render/scene.bench.ts
+git commit -m "perf: add browser benchmarks for frame time and a full-screen stroke"
+```
+
+---
+
+### Task 2: A draw-call budget test that CI can run
+
+Benchmarks measure time, which is machine-dependent and cannot gate a build. What _can_
+gate a build is the count of drawing calls per frame: levels of detail exist to bound that
+count, and the way they break is silently — a threshold edited to zero, or a `continue`
+lost from the block loop, still renders a correct-looking picture, only slower. These tests
+pin the bound.
+
+**Files:**
+
+- Create: `src/render/drawBudget.test.ts`
+
+**Interfaces:**
+
+- Consumes: `frameScenario`, `cameraForCellSize`, `filledViewport`, `createSurface`,
+  `DESKTOP_VIEWPORT` from `src/bench/scenarios.ts`; `renderScene`; `DEFAULT_THEME`;
+  `GlyphAtlas`.
+- Produces: nothing other tasks consume.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `src/render/drawBudget.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import {
+  cameraForCellSize,
+  createSurface,
+  DESKTOP_VIEWPORT,
+  filledViewport,
+} from '../bench/scenarios'
+import { GlyphAtlas } from './glyphAtlas'
+import { renderScene } from './scene'
+import { DEFAULT_THEME } from './theme'
+
+/**
+ * Counts the drawing calls one frame makes. Times vary with the machine and
+ * cannot gate a build; these counts are the same everywhere, and they are
+ * what the levels of detail exist to bound.
+ */
+function countingContext(ctx: CanvasRenderingContext2D) {
+  const counts = { drawImage: 0, fillRect: 0 }
+
+  const proxy = new Proxy(ctx, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target)
+
+      if (typeof value !== 'function') return value
+
+      return (...args: unknown[]) => {
+        if (prop === 'drawImage') counts.drawImage++
+        if (prop === 'fillRect') counts.fillRect++
+
+        return (value as (...a: unknown[]) => unknown).apply(target, args)
+      }
+    },
+    set(target, prop, value) {
+      Reflect.set(target, prop, value, target)
+
+      return true
+    },
+  })
+
+  return { counts, ctx: proxy }
+}
+
+function drawOneFrame(cellSizePx: number) {
+  const camera = cameraForCellSize(DEFAULT_THEME, cellSizePx)
+  const scene = filledViewport(camera, DEFAULT_THEME, DESKTOP_VIEWPORT)
+  const { counts, ctx } = countingContext(createSurface(DESKTOP_VIEWPORT, 1))
+
+  renderScene(ctx, scene, {
+    atlas: new GlyphAtlas(1, DEFAULT_THEME.fontStack),
+    camera,
+    height: DESKTOP_VIEWPORT.height,
+    theme: DEFAULT_THEME,
+    width: DESKTOP_VIEWPORT.width,
+  })
+
+  return { cells: scene.size, counts }
+}
+
+describe('per-frame drawing budget', () => {
+  it('draws one glyph per visible cell at the glyph level of detail', () => {
+    const { cells, counts } = drawOneFrame(DEFAULT_THEME.baseCellSize)
+
+    expect(counts.drawImage).toBe(cells)
+    // Only the background fill; glyphs are drawImage, not fillRect.
+    expect(counts.fillRect).toBe(1)
+  })
+
+  it('stops rasterising glyphs below the colour threshold', () => {
+    const { cells, counts } = drawOneFrame(
+      DEFAULT_THEME.colorLodThresholdPx - 0.5,
+    )
+
+    expect(counts.drawImage).toBe(0)
+    expect(counts.fillRect).toBe(cells + 1)
+  })
+
+  it('bounds block fills by the block threshold, not by the cell count', () => {
+    const cellSizePx = DEFAULT_THEME.blockLodThresholdPx / 4
+    const { cells, counts } = drawOneFrame(cellSizePx)
+    // Blocks are at least blockLodThresholdPx across, so the screen holds at
+    // most this many of them however far the camera zooms out.
+    const perRow = DESKTOP_VIEWPORT.width / DEFAULT_THEME.blockLodThresholdPx
+    const perColumn =
+      DESKTOP_VIEWPORT.height / DEFAULT_THEME.blockLodThresholdPx
+    const budget = Math.ceil(perRow + 1) * Math.ceil(perColumn + 1)
+
+    expect(counts.fillRect - 1).toBeLessThanOrEqual(budget)
+    expect(counts.fillRect - 1).toBeLessThan(cells / 4)
+  })
+})
+```
+
+- [ ] **Step 2: Run the tests**
+
+Run: `npx vitest run --project browser src/render/drawBudget.test.ts`
+Expected: three tests pass. If the third fails, `drawBlocks` is not bounding its fills and
+that is a defect to investigate, not a test to relax.
+
+- [ ] **Step 3: Prove the tests bite, by mutation**
+
+Temporarily set `blockLodThresholdPx: 0` and `colorLodThresholdPx: 0` in
+`src/render/theme.ts`, re-run the file, and confirm the second and third tests fail. Then
+revert the edit and confirm they pass again.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/render/drawBudget.test.ts
+git commit -m "test: pin the per-frame drawing budget the levels of detail promise"
+```
+
+---
+
+### Task 3: Measure frame time against cell size
+
+The two thresholds in `render/theme.ts` are the spec's starting guesses. This task produces
+the numbers that replace them: the rendered cell size at which a full screen of glyphs stops
+fitting the 16.7ms budget (which sets `colorLodThresholdPx`) and the size at which a full
+screen of per-cell colour fills stops fitting it (which sets `blockLodThresholdPx`).
+
+**Files:**
+
+- Create: `src/render/lod.bench.ts`
+
+**Interfaces:**
+
+- Consumes: `frameScenario`, `PHONE_VIEWPORT` from `src/bench/scenarios.ts`;
+  `DEFAULT_THEME`, `Theme`.
+- Produces: measurement numbers, recorded in `docs/superpowers/PROGRESS.md` by Task 5.
+
+- [ ] **Step 1: Write the sweep**
+
+Create `src/render/lod.bench.ts`. Both sweeps disable the levels of detail under test by
+setting the thresholds to zero, so each measures the cost of the _richer_ mode at a size
+where the app would normally have switched away from it. That is the whole question: how
+small can a cell get before the richer mode stops paying for itself?
+
+```ts
+import type { Theme } from './theme'
+
+import { bench, describe } from 'vitest'
+
+import { frameScenario, PHONE_VIEWPORT } from '../bench/scenarios'
+import { DEFAULT_THEME } from './theme'
+
+/** Levels of detail off: every cell is drawn in the mode under test. */
+const GLYPHS_ALWAYS: Theme = {
+  ...DEFAULT_THEME,
+  blockLodThresholdPx: 0,
+  colorLodThresholdPx: 0,
+}
+
+const COLOURS_ALWAYS: Theme = {
+  ...DEFAULT_THEME,
+  blockLodThresholdPx: 0,
+  colorLodThresholdPx: Infinity,
+}
+
+const GLYPH_SIZES = [24, 16, 12, 10, 8, 6, 4]
+const COLOUR_SIZES = [8, 6, 4, 3, 2, 1.5, 1]
+
+describe('glyphs at shrinking cell sizes, phone viewport at DPR 3', () => {
+  for (const cellSizePx of GLYPH_SIZES) {
+    const scenario = frameScenario({
+      cellSizePx,
+      dpr: 3,
+      theme: GLYPHS_ALWAYS,
+      viewport: PHONE_VIEWPORT,
+    })
+
+    bench(`${cellSizePx}px cells, ${scenario.cells} glyphs`, () => {
+      scenario.draw()
+    })
+  }
+})
+
+describe('colour fills at shrinking cell sizes, phone viewport at DPR 3', () => {
+  for (const cellSizePx of COLOUR_SIZES) {
+    const scenario = frameScenario({
+      cellSizePx,
+      dpr: 3,
+      theme: COLOURS_ALWAYS,
+      viewport: PHONE_VIEWPORT,
+    })
+
+    bench(`${cellSizePx}px cells, ${scenario.cells} fills`, () => {
+      scenario.draw()
+    })
+  }
+})
+```
+
+- [ ] **Step 2: Run the sweep and record the numbers**
+
+Run: `npm run bench -- src/render/lod.bench.ts`
+Write down, for each sweep, the mean time per frame at each cell size, and the hardware the
+numbers came from. The threshold to adopt is the smallest swept size whose mean frame time
+still fits 16.7ms, with the next size down exceeding it.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/render/lod.bench.ts
+git commit -m "perf: sweep frame time against rendered cell size for both levels of detail"
+```
+
+---
+
+### Task 4: Set the thresholds from the measurements
+
+**Files:**
+
+- Modify: `src/render/theme.ts` (threshold values and the comments that justify them)
+- Modify: `src/render/theme.test.ts` if, and only if, a relation between values changes
+
+**Interfaces:**
+
+- Consumes: the numbers from Task 3.
+- Produces: `DEFAULT_THEME.colorLodThresholdPx` and `DEFAULT_THEME.blockLodThresholdPx`,
+  read by `levelOfDetail`, `renderScene`, and Task 2's budget test.
+
+- [ ] **Step 1: Edit the values, and say where they came from**
+
+Replace the two threshold fields' doc comments with the measured basis — the viewport, the
+device pixel ratio, the hardware, and the frame time at the chosen size and at the size
+below it. A number without its measurement is another guess.
+
+- [ ] **Step 2: Run the full suite**
+
+Run: `npm test`
+Expected: all tests pass. `theme.test.ts` asserts relations between the thresholds, not
+literal values, so tuning must not break it; `drawBudget.test.ts` derives its budget from
+the thresholds and must not break either. If either fails, the new values contradict an
+invariant and the failure is the finding.
+
+- [ ] **Step 3: Confirm the app still looks right**
+
+Run `npm run dev`, draw, and zoom out through both thresholds. The switch to colour and to
+blocks should be invisible as a change of content — the picture stays the same picture, only
+coarser.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/render/theme.ts
+git commit -m "perf: set the level-of-detail thresholds from measured frame times"
+```
+
+---
+
+### Task 5: Real-device measurement page, and the documents
+
+`devicePixelRatio`, thermal throttling and mobile GPU behaviour are not reproducible in
+headless Chromium on a laptop, and the spec asks for verification on a real device. This
+page runs the same scenarios from `src/bench/scenarios.ts` in whatever browser opens it.
+It is dev-only: Vite serves any HTML file in the project root during `npm run dev`, and
+because it is not listed in `build.rollupOptions.input` it never reaches `dist/` or
+GitHub Pages.
+
+**Files:**
+
+- Create: `bench.html`
+- Create: `src/bench/main.ts`
+- Modify: `docs/superpowers/PROGRESS.md`
+- Modify: `CLAUDE.md` (the commands section)
+- Modify: `README.md` (drop "measure the thresholds" from the TODO list if it appears there)
+
+**Interfaces:**
+
+- Consumes: `frameScenario`, `strokeScenario`, `PHONE_VIEWPORT`, `DESKTOP_VIEWPORT`,
+  `cameraForCellSize` from `src/bench/scenarios.ts`; `MIN_ZOOM`; `DEFAULT_THEME`.
+- Produces: a page at `/bench.html` on the dev server.
+
+- [ ] **Step 1: Write the page entry**
+
+Create `src/bench/main.ts`. It measures the median of a fixed number of frames rather than
+the mean: a phone will throttle or hit a garbage collection somewhere in the run, and one
+such frame moves a mean but not a median.
+
+```ts
+import { MIN_ZOOM } from '../core/camera'
+import { DEFAULT_THEME } from '../render/theme'
+import { frameScenario, strokeScenario } from './scenarios'
+
+const FRAME_BUDGET_MS = 16.7
+const RUNS = 30
+
+type Result = { budget: number; label: string; medianMs: number }
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+
+  return sorted[Math.floor(sorted.length / 2)]
+}
+
+function measure(run: () => void): number {
+  const samples: number[] = []
+
+  for (let i = 0; i < RUNS; i++) {
+    const started = performance.now()
+
+    run()
+    samples.push(performance.now() - started)
+  }
+
+  return median(samples)
+}
+
+function viewport() {
+  return { height: window.innerHeight, width: window.innerWidth }
+}
+
+function run(): Result[] {
+  const dpr = window.devicePixelRatio || 1
+  const size = viewport()
+  const results: Result[] = []
+
+  const atOneToOne = frameScenario({
+    cellSizePx: DEFAULT_THEME.baseCellSize,
+    dpr,
+    viewport: size,
+  })
+
+  results.push({
+    budget: FRAME_BUDGET_MS,
+    label: `frame, full screen at 1x zoom (${atOneToOne.cells} cells)`,
+    medianMs: measure(atOneToOne.draw),
+  })
+
+  const atMinZoom = frameScenario({
+    cellSizePx: DEFAULT_THEME.baseCellSize * MIN_ZOOM,
+    dpr,
+    viewport: size,
+  })
+
+  results.push({
+    budget: FRAME_BUDGET_MS,
+    label: `frame, full screen at minimum zoom (${atMinZoom.cells} cells)`,
+    medianMs: measure(atMinZoom.draw),
+  })
+
+  const stroke = strokeScenario({ dpr, viewport: size })
+
+  results.push({
+    // The stroke is one redraw per step, so its budget is the frame budget
+    // times the number of steps.
+    budget: FRAME_BUDGET_MS * stroke.steps,
+    label: `stroke across the screen, ${stroke.steps} steps with a redraw each`,
+    medianMs: measure(stroke.draw),
+  })
+
+  return results
+}
+
+function render(results: Result[]): void {
+  const output = document.querySelector<HTMLElement>('#results')!
+
+  output.textContent = [
+    `${window.innerWidth}x${window.innerHeight} CSS px, DPR ${window.devicePixelRatio}`,
+    navigator.userAgent,
+    '',
+    ...results.map(
+      result =>
+        `${result.medianMs.toFixed(2)}ms / ${result.budget.toFixed(1)}ms  ` +
+        `${result.medianMs <= result.budget ? 'PASS' : 'OVER BUDGET'}  ${result.label}`,
+    ),
+  ].join('\n')
+}
+
+document
+  .querySelector<HTMLButtonElement>('#run')!
+  .addEventListener('click', () => {
+    const output = document.querySelector<HTMLElement>('#results')!
+
+    output.textContent = 'measuring...'
+    // A frame between the label and the work, so the phone paints the
+    // "measuring" text before the main thread is blocked for seconds.
+    requestAnimationFrame(() => requestAnimationFrame(() => render(run())))
+  })
+```
+
+Create `bench.html` in the project root:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmojiCanvas performance</title>
+  </head>
+  <body style="font: 14px/1.5 system-ui; margin: 1rem">
+    <h1 style="font-size: 1rem">EmojiCanvas performance</h1>
+    <p>
+      Measures the render paths against the 16.7ms frame budget on this device.
+      Dev-only: this page is not part of the production build.
+    </p>
+    <button id="run" style="font: inherit; min-height: 44px; padding: 0 1rem">
+      Measure
+    </button>
+    <pre id="results" style="white-space: pre-wrap"></pre>
+    <script type="module" src="/src/bench/main.ts"></script>
+  </body>
+</html>
+```
+
+- [ ] **Step 2: Check the page in a desktop browser**
+
+Run: `npm run dev`, open `http://localhost:5173/bench.html`, press Measure.
+Expected: three lines with times, a budget and PASS or OVER BUDGET. No console errors.
+
+- [ ] **Step 3: Check that it stays out of the production build**
+
+Run: `npm run build && ls dist`
+Expected: `dist/index.html` exists and `dist/bench.html` does not.
+
+- [ ] **Step 4: Measure on a real phone**
+
+`npm run dev` already binds to the network (`vite --host`). Open
+`http://<your-lan-ip>:5173/bench.html` on the phone and press Measure. Record the numbers,
+the device and its DPR. If a scenario is over budget, that is a finding to investigate
+before the thresholds move.
+
+- [ ] **Step 5: Update the documents**
+
+In `CLAUDE.md`, add `npm run bench` to the commands block, with a line saying benchmarks
+are the `browser` project and are not part of `npm test`, and a line for the dev-only
+`/bench.html` page. In `docs/superpowers/PROGRESS.md`, record: plan 4 done, the measured
+numbers and the hardware they came from, the thresholds adopted, and whether the real-device
+measurement has been taken or is still outstanding.
+
+- [ ] **Step 6: Verify everything**
+
+Run: `npm test && npm run lint && npm run format:check && npm run build`
+Expected: all pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add bench.html src/bench/main.ts CLAUDE.md README.md docs/superpowers/PROGRESS.md
+git commit -m "perf: add a dev-only page for measuring frame time on a real device"
+```
