@@ -16,22 +16,27 @@ export class StrokeRecorder {
 
   /**
    * Discards the stroke and returns the operation plus its inverse, or null
-   * when nothing actually changed.
+   * when nothing actually changed. A cell that was touched during the
+   * stroke but ended up back at its pre-stroke value is dropped: it would
+   * otherwise produce a no-op undo step that reads as a broken undo button.
    */
   commit(label: string): null | { inverse: Operation; op: Operation } {
-    if (this.changes.size === 0) {
-      this.reset()
-      return null
+    const changes: CellChange[] = []
+    const inverse: CellChange[] = []
+
+    for (const change of this.changes.values()) {
+      const key = `${change.x},${change.y}`
+      const previous = this.before.get(key)
+
+      if (previous === change.value) continue
+
+      changes.push(change)
+      inverse.push({ value: previous, x: change.x, y: change.y })
     }
 
-    const changes = [...this.changes.values()]
-    const inverse: CellChange[] = changes.map(change => ({
-      value: this.before.get(`${change.x},${change.y}`),
-      x: change.x,
-      y: change.y,
-    }))
-
     this.reset()
+
+    if (changes.length === 0) return null
 
     return {
       inverse: { changes: inverse, label },

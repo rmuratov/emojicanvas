@@ -139,6 +139,50 @@ describe('StrokeRecorder', () => {
     expect(scene.size).toBe(1)
   })
 
+  it('returns null when a cell is painted and then painted back to its original value', () => {
+    const scene = new Scene()
+    scene.writeCell(0, 0, 'original')
+
+    const recorder = new StrokeRecorder()
+    recorder.record(scene, 0, 0, 'x')
+    recorder.record(scene, 0, 0, 'original')
+
+    expect(recorder.commit('draw')).toBeNull()
+    expect(scene.get(0, 0)).toBe('original')
+  })
+
+  it('omits a round-tripped cell from the commit while keeping a genuinely changed one', () => {
+    const scene = new Scene()
+    scene.writeCell(0, 0, 'a-original')
+    scene.writeCell(1, 1, 'b-original')
+
+    const recorder = new StrokeRecorder()
+    recorder.record(scene, 0, 0, 'a-changed')
+    recorder.record(scene, 1, 1, 'b-changed')
+    recorder.record(scene, 1, 1, 'b-original')
+
+    const committed = recorder.commit('draw')
+
+    expect(committed).not.toBeNull()
+    expect(committed!.op.changes).toEqual([
+      { value: 'a-changed', x: 0, y: 0 },
+    ])
+    expect(committed!.inverse.changes).toEqual([
+      { value: 'a-original', x: 0, y: 0 },
+    ])
+  })
+
+  it('returns null when erasing a cell that was already empty', () => {
+    const scene = new Scene()
+
+    const recorder = new StrokeRecorder()
+    recorder.record(scene, 0, 0, 'x')
+    recorder.record(scene, 0, 0, undefined)
+
+    expect(recorder.commit('erase')).toBeNull()
+    expect(scene.has(0, 0)).toBe(false)
+  })
+
   it('starts a fresh stroke after commit', () => {
     const scene = new Scene()
     const recorder = new StrokeRecorder()
