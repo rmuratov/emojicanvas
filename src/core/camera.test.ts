@@ -80,6 +80,38 @@ describe('cellToScreen', () => {
       expect(screenToCell(camera, 30, px, py)).toEqual(cell)
     }
   })
+
+  it('round-trips across a wide sweep of cells, zooms and offsets', () => {
+    const zooms = [1.1, 1.3, 1.5, 2.5, 3.7, MIN_ZOOM, MAX_ZOOM]
+    const offsets = [0, 17, -43, 100000, -99999.5]
+    const cellCoords = [-2000, -1000, -1, 0, 1, 999, 2000]
+
+    const failures: string[] = []
+
+    for (const zoom of zooms) {
+      for (const offsetX of offsets) {
+        for (const offsetY of offsets) {
+          const camera = { offsetX, offsetY, zoom }
+
+          for (const x of cellCoords) {
+            for (const y of cellCoords) {
+              const { px, py } = cellToScreen(camera, 30, x, y)
+              const roundTripped = screenToCell(camera, 30, px, py)
+
+              if (roundTripped.x !== x || roundTripped.y !== y) {
+                failures.push(
+                  `cell (${x}, ${y}) at zoom ${zoom}, offset (${offsetX}, ${offsetY}): ` +
+                    `screen (${px}, ${py}) -> cell (${roundTripped.x}, ${roundTripped.y})`,
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+
+    expect(failures).toEqual([])
+  })
 })
 
 describe('visibleBounds', () => {
@@ -122,6 +154,28 @@ describe('visibleBounds', () => {
       minY: 0,
     })
   })
+
+  it('yields a valid single-cell range for a zero-size viewport', () => {
+    const bounds = visibleBounds(createCamera(), 30, 0, 0)
+
+    expect(bounds.maxX).toBeGreaterThanOrEqual(bounds.minX)
+    expect(bounds.maxY).toBeGreaterThanOrEqual(bounds.minY)
+    expect(bounds).toEqual({ maxX: 0, maxY: 0, minX: 0, minY: 0 })
+  })
+
+  it('yields a valid range for a zero height', () => {
+    const bounds = visibleBounds(createCamera(), 30, 90, 0)
+
+    expect(bounds.maxY).toBeGreaterThanOrEqual(bounds.minY)
+    expect(bounds).toEqual({ maxX: 2, maxY: 0, minX: 0, minY: 0 })
+  })
+
+  it('yields a valid range for a negative width', () => {
+    const bounds = visibleBounds(createCamera(), 30, -10, 90)
+
+    expect(bounds.maxX).toBeGreaterThanOrEqual(bounds.minX)
+    expect(bounds).toEqual({ maxX: 0, maxY: 2, minX: 0, minY: 0 })
+  })
 })
 
 describe('zoomAt', () => {
@@ -140,6 +194,29 @@ describe('zoomAt', () => {
 
     expect(worldXAfter).toBeCloseTo(worldXBefore, 10)
     expect(worldYAfter).toBeCloseTo(worldYBefore, 10)
+  })
+
+  it('keeps the anchored point fixed even when the zoom clamps', () => {
+    const camera = { offsetX: 100, offsetY: 50, zoom: 1 }
+    const anchorPx = 200
+    const anchorPy = 150
+
+    for (const factor of [1000, 0.00001]) {
+      const worldXBefore =
+        (anchorPx + camera.offsetX) / cellSizeAt(30, camera.zoom)
+      const worldYBefore =
+        (anchorPy + camera.offsetY) / cellSizeAt(30, camera.zoom)
+
+      const zoomed = zoomAt(camera, factor, anchorPx, anchorPy)
+
+      const worldXAfter =
+        (anchorPx + zoomed.offsetX) / cellSizeAt(30, zoomed.zoom)
+      const worldYAfter =
+        (anchorPy + zoomed.offsetY) / cellSizeAt(30, zoomed.zoom)
+
+      expect(worldXAfter).toBeCloseTo(worldXBefore, 10)
+      expect(worldYAfter).toBeCloseTo(worldYBefore, 10)
+    }
   })
 
   it('multiplies the zoom by the factor', () => {

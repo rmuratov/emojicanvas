@@ -61,6 +61,11 @@ export function screenToCell(
  * Every cell touching the viewport, including partially visible ones at the
  * far edges. Rendering only this range is what keeps frame cost tied to the
  * window size rather than to the size of the drawing.
+ *
+ * Width and height are clamped to at least 0 before locating the far edge,
+ * so a degenerate viewport (0×0, or a transient negative size during
+ * layout) still yields a valid single-cell range instead of inverted
+ * bounds.
  */
 export function visibleBounds(
   camera: Camera,
@@ -69,7 +74,12 @@ export function visibleBounds(
   height: number,
 ): CellBounds {
   const topLeft = screenToCell(camera, baseCellSize, 0, 0)
-  const bottomRight = screenToCell(camera, baseCellSize, width - 1, height - 1)
+  const bottomRight = screenToCell(
+    camera,
+    baseCellSize,
+    Math.max(0, width - 1),
+    Math.max(0, height - 1),
+  )
 
   return {
     maxX: bottomRight.x,
