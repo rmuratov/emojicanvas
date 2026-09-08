@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SceneData } from './scene'
 
-import { Scene } from './scene'
+import { Scene, SCENE_DATA_VERSION } from './scene'
 
 describe('Scene', () => {
   it('starts empty', () => {
@@ -122,6 +122,7 @@ describe('Scene', () => {
         'NaN,0': 'f',
         'zzz,0': '',
       },
+      version: SCENE_DATA_VERSION,
     })
 
     expect(restored.size).toBe(2)
@@ -137,6 +138,7 @@ describe('Scene', () => {
         '5,6': '',
         '7,8': 'd',
       },
+      version: SCENE_DATA_VERSION,
     } as unknown as SceneData)
 
     expect(restored.size).toBe(2)
@@ -152,6 +154,7 @@ describe('Scene', () => {
         '1,2 ': 'a',
         ' 1,2': 'b',
       },
+      version: SCENE_DATA_VERSION,
     })
 
     expect(restored.size).toBe(1)
@@ -169,6 +172,7 @@ describe('Scene', () => {
         'NaN,0': 'e',
         'zzz,0': '',
       },
+      version: SCENE_DATA_VERSION,
     })
 
     expect(restored.size).toBe(0)
@@ -192,7 +196,34 @@ describe('Scene', () => {
   it('yields an empty scene when cells is not an object', () => {
     const restored = Scene.fromJSON({
       cells: 'not an object',
+      version: SCENE_DATA_VERSION,
     } as unknown as SceneData)
+
+    expect(restored.size).toBe(0)
+    expect(restored.bounds()).toBeNull()
+  })
+
+  it('writes the current version into toJSON', () => {
+    const scene = new Scene()
+
+    expect(scene.toJSON().version).toBe(SCENE_DATA_VERSION)
+  })
+
+  it('restores a scene from a payload with the version this build understands', () => {
+    const restored = Scene.fromJSON({
+      cells: { '1,2': 'a' },
+      version: SCENE_DATA_VERSION,
+    })
+
+    expect(restored.size).toBe(1)
+    expect(restored.get(1, 2)).toBe('a')
+  })
+
+  it('yields an empty scene for a future version it does not understand', () => {
+    const restored = Scene.fromJSON({
+      cells: { '1,2': 'a' },
+      version: SCENE_DATA_VERSION + 1,
+    })
 
     expect(restored.size).toBe(0)
     expect(restored.bounds()).toBeNull()

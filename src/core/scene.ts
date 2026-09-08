@@ -1,6 +1,13 @@
 import type { Cell, CellBounds, Emoji } from './types'
 
-export type SceneData = { cells: Record<string, Emoji> }
+/**
+ * The current SceneData format. Bumped whenever the serialised shape
+ * changes in a way old readers can't tolerate; fromJSON rejects any other
+ * version rather than guessing at its shape.
+ */
+export const SCENE_DATA_VERSION = 1
+
+export type SceneData = { cells: Record<string, Emoji>; version: number }
 
 /**
  * Sparse storage for an unbounded grid: a key exists only where a cell has
@@ -69,7 +76,10 @@ export class Scene {
    * one whose `cells` is missing or not an object, yields an empty scene
    * rather than throwing — `Object.entries` on a null or undefined `cells`
    * throws a TypeError, and a hand-edited or truncated payload can easily
-   * lose the envelope shape, not just individual entries.
+   * lose the envelope shape, not just individual entries. A payload whose
+   * `version` isn't the one this build understands is treated the same
+   * way: a future format may not be readable at all, so guessing at its
+   * shape is worse than showing an empty scene.
    */
   static fromJSON(data: SceneData): Scene {
     const scene = new Scene()
@@ -77,6 +87,7 @@ export class Scene {
     if (
       typeof data !== 'object' ||
       data === null ||
+      data.version !== SCENE_DATA_VERSION ||
       typeof data.cells !== 'object' ||
       data.cells === null
     ) {
@@ -95,7 +106,7 @@ export class Scene {
   }
 
   toJSON(): SceneData {
-    return { cells: Object.fromEntries(this.cells) }
+    return { cells: Object.fromEntries(this.cells), version: SCENE_DATA_VERSION }
   }
 
   /**
