@@ -21,7 +21,7 @@ All work happens on a single branch, **`foundation`** (44 commits), to be merged
 ## What already works
 
 `npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all green
-from a clean state. **184 tests across 15 files.**
+from a clean state. **186 tests across 15 files.**
 
 **The app now runs on the new engine.** `src/lib/EmojiCanvas.ts` and `useEmojiCanvas` are
 deleted; there is one engine, not two. Verified by hand in a browser as well as by tests:
@@ -114,24 +114,47 @@ on purpose.
    but it asserts a property this implementation does not universally have. Not a
    blocker for plan 3: nothing depends on the symmetry, only the test's name overclaims.
 
-## Deferred findings from plan 1
+## Deferred findings from plan 1 — cleared
 
-None block work. Address before merging `foundation` into `main`.
+All but one are closed (commit `a561e65`). **Bundle size was dropped from this list by
+decision: no budget is being set until the feature work is done.**
 
-1. Bundle is now 243.62 kB (78.75 gzip), up from 192.52 kB (64.11) before this work.
-   No size budget was ever set. Set one before merging.
-2. `settings.react.version` is hardcoded `'19.2'` in `eslint.config.js` because the
-   plugin's auto-detect crashes on ESLint 10. Will go stale silently at the next major.
-3. `package-lock.json`'s root `packages[""]` does not echo `overrides`. `npm ci` works.
-4. The Tool button's border colour is still a literal. `render/theme.ts` exists now, but
-   it holds canvas colours only; the React shell has no token source.
-5. ~~`.px-1` in the built CSS from a commented-out `<dialog>`.~~ **Retired** — plan 3
-   deleted that markup.
-6. Two high-severity ReDoS advisories in transitive **dev** dependencies.
-   `npm audit --omit=dev` reports zero, so nothing reaches users.
-7. `tsconfig.node.json` includes only `vite.config.ts`; `vitest.config.ts` is
-   type-checked by nothing.
-8. `.prettierrc` still carries the deprecated `jsxBracketSameLine`.
+1. ~~`.prettierrc` carries the deprecated `jsxBracketSameLine`.~~ **Closed.** Removed; it
+   was renamed to `bracketSameLine` and held the default value, so formatting is
+   unchanged.
+2. ~~`vitest.config.ts` is type-checked by nothing.~~ **Closed, and it was worse than
+   recorded.** Adding it to `tsconfig.node.json`'s `include` is *not* enough: plain `tsc`
+   does not check referenced projects, so a deliberate type error still passed. The
+   `references`/`composite` pair existed only for a link `tsc` never honoured; both are
+   gone, and `npm run build` now runs `tsc -p tsconfig.node.json` explicitly. Verified by
+   mutation: a type error in `vitest.config.ts` fails the build.
+3. ~~`settings.react.version` is hardcoded `'19.2'`.~~ **Closed.** `eslint.config.js` now
+   reads the version from the installed `react/package.json` via `createRequire`, so it
+   cannot go stale. `version: 'detect'` was retried and **still crashes** under ESLint 10,
+   so that settled decision stands.
+4. ~~Two high-severity ReDoS advisories in dev dependencies.~~ **Closed.** A fix existed
+   this time; `npm audit fix` took it. Zero vulnerabilities including dev.
+5. ~~`package-lock.json`'s root `packages[""]` does not echo `overrides`.~~ **Closed as
+   not-a-defect.** npm 11 does not echo root `overrides` there *at all* — a freshly
+   generated lockfile does not either, so the expectation was wrong. The lockfile was
+   regenerated to `lockfileVersion` 3 anyway (zero version bumps, no removals), and `npm
+   ci` from a clean tree passes with the override doing its job: `eslint-plugin-react`
+   declares a peer of at most `^9.7` while ESLint 10.10.0 is installed.
+6. ~~`.px-1` in the built CSS.~~ **Closed** by plan 3 deleting the commented-out
+   `<dialog>`.
+7. **Still open — the Tool button's border colour is a literal, not a theme token.**
+   `render/theme.ts` exists but holds canvas colours only; the React shell is Tailwind
+   utility classes and has no token source. Needs a decision, not a mechanical fix.
+
+## Found while clearing, not yet decided
+
+**Prettier is not enforced anywhere.** `npm run lint` does not run it —
+`eslint-config-prettier` only *disables* conflicting ESLint rules — so nothing checks
+formatting. Nine files disagree with `.prettierrc`, some predating this work
+(`src/core/types.ts`, `src/core/scene.ts`) and some written during it
+(`src/input/pointer.ts`, `src/render/theme.test.ts`). CLAUDE.md documents the Prettier
+conventions as if they were enforced. Either wire `prettier --check` into `lint` and
+reformat, or stop presenting the conventions as binding.
 
 ## Deferred out of plan 3
 
@@ -175,15 +198,19 @@ are recorded because breaking one is easy and the breakage is quiet.
 Plans 1 to 3 are done and the app runs on the new engine. What remains before `foundation`
 merges into `main`:
 
+0. **Decide the two items above** — the Tool border token, and whether Prettier becomes
+   enforced.
 1. **Plan 4 — performance**, the spec's step 7. Write it from the spec's "Performance"
    section: Vitest benchmarks in the browser project for frame time at 1x zoom and at
    minimum zoom and for a full-screen stroke, then measurement on a real mobile device,
    then tune the level-of-detail thresholds. **The 12px and 4px thresholds are still their
    starting values — nothing has measured them.** A benchmark regression is a reason to
    investigate, not to raise the threshold.
-2. **Clear plan 1's deferred findings** below. Two are already retired by plan 3: the Tool
-   button's literal border colour still stands, but `.px-1` is gone with the commented-out
-   `<dialog>`, and a bundle budget should be set now that the bundle is 243.62 kB
-   (78.75 gzip) with the new engine in it.
-3. **Finding 3 from plan 2** — the reverse-direction line test that asserts a property
-   Bresenham does not universally have. Still open, still not a blocker.
+2. ~~Clear plan 1's deferred findings.~~ Done, except the Tool border token.
+3. ~~Finding 3 from plan 2 — the reverse-direction line test.~~ **Closed** (`a561e65`).
+   Brute force over every integer pair in [-5,5]² confirmed the finding exactly: 31.5% of
+   pairs violate the symmetry, and the named counterexample `(-5,-5)→(-4,-3)` is real —
+   forward goes through `(-5,-4)`, backward through `(-4,-4)`. The test now asserts what
+   *does* hold universally (endpoints, length, connectivity, all verified by brute force
+   over the same range) and pins the asymmetry with that counterexample so nobody
+   "fixes" it by accident.
