@@ -2,10 +2,24 @@ import type { Camera } from '../core/camera'
 import type { Scene } from '../core/scene'
 import type { CellBounds } from '../core/types'
 import type { GlyphAtlas } from './glyphAtlas'
-import type { Theme } from './theme'
+import type { LevelOfDetail, Theme } from './theme'
 
 import { cellSizeAt, visibleBounds } from '../core/camera'
 import { levelOfDetail } from './theme'
+
+/**
+ * Scratch space for the sparse block path: a block's colour sums live in
+ * `blockSums` as six numbers — red, green, blue, how many cells, and the
+ * block's top-left cell — and `blockSlots` maps a block's position in the
+ * viewport to the start of its six. Both are module-level and reused rather
+ * than allocated per frame, because this runs inside the draw loop, and both
+ * are emptied at the start of every frame that uses them. Rendering is
+ * synchronous, so there is never a second frame in flight to share them
+ * with.
+ */
+const blockSlots = new Map<number, number>()
+const blockSums: number[] = []
+const SLOT_SIZE = 6
 
 export type RenderOptions = {
   atlas: GlyphAtlas
@@ -48,13 +62,30 @@ export function renderScene(
   const bounds = visibleBounds(camera, theme.baseCellSize, width, height)
   const detail = levelOfDetail(theme, cellSize)
 
+  // Whichever side is smaller is the one to walk. Scanning the viewport
+  // costs a cell lookup — and the string key it builds — for every visible
+  // cell, drawn or not, which zoomed out is over a million of them for a
+  // drawing of ten. Walking the scene costs one step per drawn cell instead,
+  // so the frame stays bounded by the smaller of the two either way.
+  const sparse = scene.size < cellCount(bounds)
+
   if (detail === 'block') {
-    drawBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme)
+    if (sparse) {
+      drawSparseBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme)
+    } else {
+      drawBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme)
+    }
+
     return
   }
 
   if (detail === 'glyph') {
     drawGrid(ctx, theme, camera, cellSize, bounds, width, height)
+  }
+
+  if (sparse) {
+    drawSparseCells(ctx, scene, atlas, camera, cellSize, bounds, detail)
+    return
   }
 
   for (let y = bounds.minY; y <= bounds.maxY; y++) {
@@ -76,6 +107,11 @@ export function renderScene(
       }
     }
   }
+}
+
+/** How many cells the viewport can see, drawn or not. */
+function cellCount(bounds: CellBounds): number {
+  return (bounds.maxX - bounds.minX + 1) * (bounds.maxY - bounds.minY + 1)
 }
 
 /**
@@ -168,4 +204,105 @@ function drawGrid(
   }
 
   ctx.stroke()
+}
+
+/**
+ * The block path for a drawing smaller than the viewport: every drawn cell
+ * is added to the block it falls in, then each block is filled once. Same
+ * blocks, same alignment and same averaged colour as the dense path — only
+ * the walk differs.
+ */
+function drawSparseBlocks(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene,
+  atlas: GlyphAtlas,
+  camera: Camera,
+  cellSize: number,
+  bounds: CellBounds,
+  theme: Theme,
+): void {
+  const span = Math.max(1, Math.ceil(theme.blockLodThresholdPx / cellSize))
+  const blockSize = cellSize * span
+  const columns = Math.ceil((bounds.maxX - bounds.minX + 1) / span)
+
+  blockSlots.clear()
+  blockSums.length = 0
+
+  for (const [{ x, y }, value] of scene.entries()) {
+    if (x < bounds.minX || x > bounds.maxX) continue
+    if (y < bounds.minY || y > bounds.maxY) continue
+
+    const column = Math.floor((x - bounds.minX) / span)
+    const row = Math.floor((y - bounds.minY) / span)
+    const key = column + row * columns
+
+    let slot = blockSlots.get(key)
+
+    if (slot === undefined) {
+      slot = blockSums.length
+      blockSlots.set(key, slot)
+      blockSums.push(
+        0,
+        0,
+        0,
+        0,
+        bounds.minX + column * span,
+        bounds.minY + row * span,
+      )
+    }
+
+    const rgb = atlas.averageColorRgb(value)
+
+    blockSums[slot] += rgb[0]
+    blockSums[slot + 1] += rgb[1]
+    blockSums[slot + 2] += rgb[2]
+    blockSums[slot + 3]++
+  }
+
+  for (let slot = 0; slot < blockSums.length; slot += SLOT_SIZE) {
+    const filled = blockSums[slot + 3]
+
+    ctx.fillStyle = `rgb(${Math.round(blockSums[slot] / filled)}, ${Math.round(
+      blockSums[slot + 1] / filled,
+    )}, ${Math.round(blockSums[slot + 2] / filled)})`
+    ctx.fillRect(
+      blockSums[slot + 4] * cellSize - camera.offsetX,
+      blockSums[slot + 5] * cellSize - camera.offsetY,
+      blockSize + 1,
+      blockSize + 1,
+    )
+  }
+}
+
+/**
+ * The glyph and colour paths for a drawing smaller than the viewport: one
+ * step per drawn cell instead of one lookup per visible cell. Glyphs never
+ * overlap, so the order they are drawn in cannot show; colour fills overlap
+ * their neighbour by the one pixel that hides the seams, so a differently
+ * ordered walk can decide a seam pixel differently — which is invisible, the
+ * two colours being those of adjacent cells either way.
+ */
+function drawSparseCells(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene,
+  atlas: GlyphAtlas,
+  camera: Camera,
+  cellSize: number,
+  bounds: CellBounds,
+  detail: LevelOfDetail,
+): void {
+  for (const [{ x, y }, value] of scene.entries()) {
+    if (x < bounds.minX || x > bounds.maxX) continue
+    if (y < bounds.minY || y > bounds.maxY) continue
+
+    const px = x * cellSize - camera.offsetX
+    const py = y * cellSize - camera.offsetY
+
+    if (detail === 'glyph') {
+      ctx.drawImage(atlas.get(value, cellSize), px, py, cellSize, cellSize)
+    } else {
+      ctx.fillStyle = atlas.averageColor(value)
+      ctx.fillRect(px, py, cellSize + 1, cellSize + 1)
+    }
+  }
 }

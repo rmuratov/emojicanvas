@@ -180,6 +180,81 @@ describe('renderScene', () => {
     expect(r).toBeGreaterThan(b)
   })
 
+  it('draws the same blocks whether it walks the scene or the viewport', () => {
+    // Which walk the renderer picks is decided by scene.size against the
+    // number of visible cells, so the same visible drawing plus enough
+    // off-screen cells takes the other path and must produce the same
+    // picture. 3px cells put this below the block threshold.
+    const camera = createCamera()
+    camera.zoom = 3 / DEFAULT_THEME.baseCellSize
+
+    const visibleCells = (WIDTH / 3) * (HEIGHT / 3)
+    const sparse = new Scene()
+    const dense = new Scene()
+
+    // Deliberately not starting on a block boundary: a cluster aligned with
+    // one would hide a block drawn at its first cell's coordinates instead
+    // of at the block's own.
+    for (let y = 1; y < 11; y++) {
+      for (let x = 1; x < 11; x++) {
+        const emoji = (x + y) % 2 === 0 ? '❤️' : '🌊'
+
+        sparse.writeCell(x, y, emoji)
+        dense.writeCell(x, y, emoji)
+      }
+    }
+
+    // Off to the side, so they cost the dense walk without being seen.
+    for (let i = 0; i <= visibleCells; i++) {
+      dense.writeCell(1000 + i, 1000, '❤️')
+    }
+
+    expect(sparse.size).toBeLessThan(visibleCells)
+    expect(dense.size).toBeGreaterThan(visibleCells)
+
+    const bySparseWalk = surface()
+    const byViewportScan = surface()
+
+    renderScene(bySparseWalk, sparse, options({ camera }))
+    renderScene(byViewportScan, dense, options({ camera }))
+
+    expect(bytes(bySparseWalk)).toEqual(bytes(byViewportScan))
+  })
+
+  it('draws the same colour cells whether it walks the scene or the viewport', () => {
+    // 6px cells: below the colour threshold, above the block one.
+    const camera = createCamera()
+    camera.zoom = 6 / DEFAULT_THEME.baseCellSize
+
+    const visibleCells = (WIDTH / 6) * (HEIGHT / 6)
+    const sparse = new Scene()
+    const dense = new Scene()
+
+    for (let y = 1; y < 6; y++) {
+      for (let x = 1; x < 6; x++) {
+        const emoji = (x + y) % 2 === 0 ? '❤️' : '🌊'
+
+        sparse.writeCell(x, y, emoji)
+        dense.writeCell(x, y, emoji)
+      }
+    }
+
+    for (let i = 0; i <= visibleCells; i++) {
+      dense.writeCell(1000 + i, 1000, '❤️')
+    }
+
+    expect(sparse.size).toBeLessThan(visibleCells)
+    expect(dense.size).toBeGreaterThan(visibleCells)
+
+    const bySparseWalk = surface()
+    const byViewportScan = surface()
+
+    renderScene(bySparseWalk, sparse, options({ camera }))
+    renderScene(byViewportScan, dense, options({ camera }))
+
+    expect(bytes(bySparseWalk)).toEqual(bytes(byViewportScan))
+  })
+
   it('applies the theme antialiasing flag to the context', () => {
     const ctx = surface()
 

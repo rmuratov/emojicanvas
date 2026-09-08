@@ -66,11 +66,16 @@ export function createSurface(
   return ctx
 }
 
-/** Every visible cell drawn — the worst case a frame can be asked to render. */
+/**
+ * Every visible cell drawn — the worst case a frame can be asked to render
+ * — or, with `drawnCells`, that many cells spread evenly over the same
+ * area, which is what a real drawing looks like from far away.
+ */
 export function filledViewport(
   camera: Camera,
   theme: Theme,
   viewport: Viewport,
+  drawnCells?: number,
 ): Scene {
   const scene = new Scene()
   const bounds = visibleBounds(
@@ -80,12 +85,18 @@ export function filledViewport(
     viewport.height,
   )
   const changes: CellChange[] = []
+  const visible =
+    (bounds.maxX - bounds.minX + 1) * (bounds.maxY - bounds.minY + 1)
+  const every =
+    drawnCells === undefined ? 1 : Math.max(1, Math.floor(visible / drawnCells))
 
   let i = 0
 
   for (let y = bounds.minY; y <= bounds.maxY; y++) {
     for (let x = bounds.minX; x <= bounds.maxX; x++) {
-      changes.push({ value: BENCH_EMOJI[i++ % BENCH_EMOJI.length], x, y })
+      if (i++ % every !== 0) continue
+
+      changes.push({ value: BENCH_EMOJI[i % BENCH_EMOJI.length], x, y })
     }
   }
 
@@ -105,6 +116,8 @@ export function filledViewport(
 export function frameScenario(options: {
   cellSizePx: number
   dpr?: number
+  /** How many cells are actually drawn; every visible one by default. */
+  drawnCells?: number
   theme?: Theme
   viewport?: Viewport
 }): { cells: number; draw: () => void } {
@@ -112,7 +125,7 @@ export function frameScenario(options: {
   const viewport = options.viewport ?? DESKTOP_VIEWPORT
   const dpr = options.dpr ?? 1
   const camera = cameraForCellSize(theme, options.cellSizePx)
-  const scene = filledViewport(camera, theme, viewport)
+  const scene = filledViewport(camera, theme, viewport, options.drawnCells)
   const ctx = createSurface(viewport, dpr)
   const atlas = new GlyphAtlas(dpr, theme.fontStack)
   const draw = () =>
