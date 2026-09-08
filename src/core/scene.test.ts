@@ -57,6 +57,22 @@ describe('Scene', () => {
     expect(scene.bounds()).toEqual({ maxX: 4, maxY: 5, minX: -1, minY: 2 })
   })
 
+  it('reports bounds for cells sharing a row', () => {
+    const scene = new Scene()
+    scene.writeCell(-1, 3, 'a')
+    scene.writeCell(4, 3, 'b')
+
+    expect(scene.bounds()).toEqual({ maxX: 4, maxY: 3, minX: -1, minY: 3 })
+  })
+
+  it('reports bounds for cells sharing a column', () => {
+    const scene = new Scene()
+    scene.writeCell(2, -1, 'a')
+    scene.writeCell(2, 6, 'b')
+
+    expect(scene.bounds()).toEqual({ maxX: 2, maxY: 6, minX: 2, minY: -1 })
+  })
+
   it('shrinks bounds after the outermost cell is erased', () => {
     const scene = new Scene()
     scene.writeCell(0, 0, 'a')
@@ -98,5 +114,54 @@ describe('Scene', () => {
     expect(restored.size).toBe(2)
     expect(restored.get(-3, 4)).toBe('❤️')
     expect(restored.get(0, 0)).toBe('🔥')
+  })
+
+  it('keeps only the valid entries from a payload mixing valid and invalid ones', () => {
+    const restored = Scene.fromJSON({
+      cells: {
+        '1,2': 'a',
+        '1,2,3': 'b',
+        '1.5,2': 'c',
+        '2,3': 'd',
+        abc: 'g',
+        'abc,def': 'h',
+        'Infinity,0': 'e',
+        'NaN,0': 'f',
+        'zzz,0': '',
+      },
+    })
+
+    expect(restored.size).toBe(2)
+    expect(restored.get(1, 2)).toBe('a')
+    expect(restored.get(2, 3)).toBe('d')
+  })
+
+  it('normalises a key with surrounding whitespace to its canonical form', () => {
+    const restored = Scene.fromJSON({
+      cells: {
+        '1,2 ': 'a',
+        ' 1,2': 'b',
+      },
+    })
+
+    expect(restored.size).toBe(1)
+    expect(restored.get(1, 2)).toBe('b')
+  })
+
+  it('yields an empty scene from a payload with only invalid entries', () => {
+    const restored = Scene.fromJSON({
+      cells: {
+        '1': 'a',
+        '1,2,3': 'b',
+        '1.5,2': 'c',
+        'abc,def': 'f',
+        'Infinity,0': 'd',
+        'NaN,0': 'e',
+        'zzz,0': '',
+      },
+    })
+
+    expect(restored.size).toBe(0)
+    expect(restored.bounds()).toBeNull()
   })
 })

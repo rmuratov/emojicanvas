@@ -57,11 +57,27 @@ export class Scene {
     return this.cells.has(keyOf(x, y))
   }
 
+  /**
+   * Restores a scene from serialised data. Entries whose key does not parse
+   * to two finite integers, or whose value is not a non-empty string, are
+   * skipped rather than throwing — this data may one day come from a
+   * shareable link (a truncated URL, an old format, a hand-edited payload),
+   * and a partially readable drawing is better than a crash or a blank
+   * screen. A valid key is re-encoded through `keyOf` rather than stored
+   * verbatim, because `parseKey` tolerates surrounding whitespace (via
+   * `Number()`) that `keyOf` never produces — storing the raw key would
+   * make the cell unreachable through `get`/`has`, which always look up
+   * the canonical form.
+   */
   static fromJSON(data: SceneData): Scene {
     const scene = new Scene()
 
     for (const [key, value] of Object.entries(data.cells)) {
-      scene.cells.set(key, value)
+      if (!isValidKey(key) || !isValidValue(value)) continue
+
+      const { x, y } = parseKey(key)
+
+      scene.cells.set(keyOf(x, y), value)
     }
 
     return scene
@@ -86,6 +102,20 @@ export class Scene {
 
     this.cells.set(key, value)
   }
+}
+
+function isValidKey(key: string): boolean {
+  const comma = key.indexOf(',')
+
+  if (comma === -1) return false
+
+  const { x, y } = parseKey(key)
+
+  return Number.isInteger(x) && Number.isInteger(y)
+}
+
+function isValidValue(value: unknown): value is Emoji {
+  return typeof value === 'string' && value.length > 0
 }
 
 function keyOf(x: number, y: number): string {
