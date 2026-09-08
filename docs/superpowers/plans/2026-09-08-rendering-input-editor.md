@@ -1741,7 +1741,8 @@ describe('attachPointerInput gestures', () => {
 - [ ] **Step 2: Run the tests and watch them fail**
 
 Run: `npx vitest run --project browser src/input/pointer.test.ts`
-Expected: the 13 new tests FAIL; the 10 from task 4 still PASS.
+Expected: 10 of the 12 new tests FAIL; the other two pass vacuously (they guard
+against regressions rather than drive new code), and the 10 from task 4 still PASS.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1942,7 +1943,7 @@ it as a deferred item rather than improvising it.
 - [ ] **Step 4: Run the tests and watch them pass**
 
 Run: `npx vitest run --project browser src/input/pointer.test.ts`
-Expected: PASS, 23 tests.
+Expected: PASS, 22 tests.
 
 - [ ] **Step 5: Lint, run the whole suite, commit**
 
