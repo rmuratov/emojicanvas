@@ -94,6 +94,11 @@ grid anything was drawn into. In headless Chromium the same frame went 15.9ms �
 block count stopped mattering: ten times wider blocks now measure the same. An almost empty
 screen at minimum zoom stays at 0.09ms and a 500-cell drawing costs 0.62ms.
 
+**Re-measured in the same Safari afterwards: that frame went 20ms → 9ms and every scenario
+now passes** — 5ms for a full screen at 1x zoom, 9ms at minimum zoom with 136,220 cells,
+1ms for the ordinary 500-cell drawing, 9ms for a stroke of 49 steps against a budget of
+818ms. Two engines now agree, WebKit and Blink; only a phone is still unmeasured.
+
 **What is left of that worst case is the scan**, about 7ms of the 8.6ms, and it is the cost
 of building a string key per visible cell in `Scene.get`. Removing it means keying cells by
 number instead of by string, which is a change to `core/scene.ts` and its serialisation and
@@ -302,9 +307,10 @@ All four plans are done and the app runs on the new engine. Two things remain be
    `/bench.html` on the device (the base path applies:
    `http://<lan-ip>:5173/emojicanvas/bench.html`) and press Measure. The page prints each
    scenario against its budget with PASS or OVER BUDGET, plus the viewport and the device
-   pixel ratio. Everything so far was measured in headless Chromium on a MacBook, where
-   every scenario but one fits the budget; a phone is slower per core and usually runs at
-   DPR 3, so this is the measurement that can still move a threshold. If a scenario comes
+   pixel ratio. Everything so far was measured on a MacBook — headless Chromium, and
+   desktop Safari 26 at 1470x833 and DPR 2, where all four scenarios pass with the worst
+   at 9ms of 16.7ms. A phone is slower per core and usually runs at DPR 3, so that is the
+   measurement that can still move a threshold. If a scenario comes
    back over budget, investigate it — do not raise the threshold to make it fit.
 2. **Merge `foundation` into `main`.** Nothing is pushed and `main` still sits at
    `a11e969`.
