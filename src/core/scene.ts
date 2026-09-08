@@ -64,9 +64,24 @@ export class Scene {
    * `Number()`) that `keyOf` never produces — storing the raw key would
    * make the cell unreachable through `get`/`has`, which always look up
    * the canonical form.
+   *
+   * The same resilience applies to the envelope itself: a null payload, or
+   * one whose `cells` is missing or not an object, yields an empty scene
+   * rather than throwing — `Object.entries` on a null or undefined `cells`
+   * throws a TypeError, and a hand-edited or truncated payload can easily
+   * lose the envelope shape, not just individual entries.
    */
   static fromJSON(data: SceneData): Scene {
     const scene = new Scene()
+
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      typeof data.cells !== 'object' ||
+      data.cells === null
+    ) {
+      return scene
+    }
 
     for (const [key, value] of Object.entries(data.cells)) {
       if (!isValidKey(key) || !isValidValue(value)) continue

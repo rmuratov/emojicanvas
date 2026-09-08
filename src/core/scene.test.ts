@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import type { SceneData } from './scene'
+
 import { Scene } from './scene'
 
 describe('Scene', () => {
@@ -151,6 +153,29 @@ describe('Scene', () => {
         'zzz,0': '',
       },
     })
+
+    expect(restored.size).toBe(0)
+    expect(restored.bounds()).toBeNull()
+  })
+
+  it('yields an empty scene from a null payload instead of throwing', () => {
+    const restored = Scene.fromJSON(null as unknown as SceneData)
+
+    expect(restored.size).toBe(0)
+    expect(restored.bounds()).toBeNull()
+  })
+
+  it('yields an empty scene from a payload missing cells instead of throwing', () => {
+    const restored = Scene.fromJSON({} as SceneData)
+
+    expect(restored.size).toBe(0)
+    expect(restored.bounds()).toBeNull()
+  })
+
+  it('yields an empty scene when cells is not an object', () => {
+    const restored = Scene.fromJSON({
+      cells: 'not an object',
+    } as unknown as SceneData)
 
     expect(restored.size).toBe(0)
     expect(restored.bounds()).toBeNull()
