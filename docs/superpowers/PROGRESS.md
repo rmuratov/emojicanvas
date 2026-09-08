@@ -7,100 +7,130 @@ Updated: 2026-09-07.
 
 ## Where we are
 
-All work is happening on a single branch, **`foundation`** (21 commits), which will
-be merged into `main` locally once all three plans are done. Nothing has been
-pushed; `main` is untouched.
+All work happens on a single branch, **`foundation`** (44 commits), to be merged into
+`main` locally once all three plans are done. Nothing is pushed. `main` sits at
+`a11e969` and matches `origin/main` exactly.
 
 | Plan | Status |
 |---|---|
-| 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, review passed |
-| 2. Engine core | **Plan not written yet** — next step |
-| 3. Rendering, input, integration, performance | Plan not written |
+| 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, reviewed |
+| 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed, 3 findings left open on purpose |
+| 3. Rendering, input, editor facade, React port | **Plan not written** — next step |
 
 ## What already works
 
-`npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all
-green from a clean state. The app looks and behaves exactly as it did before the
-work started: compared against a baseline screenshot, including the mobile layout.
+`npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all green
+from a clean state. **102 tests across 10 files.**
 
-Toolchain: React 19.2, Vite 8.2, TypeScript 5.9.3, ESLint 10.10 (flat config,
-`eslint.config.js`), Tailwind 4.3 (configured in `src/index.css`), Prettier 3.9,
-Vitest 5.
+The app in the browser is untouched: it still runs the OLD engine
+(`src/lib/EmojiCanvas.ts`) and looks and behaves exactly as it did before this work
+started. Nothing built in plan 2 is imported by the running app yet — that is plan 3's
+job.
 
-Tests: two projects in `vitest.config.ts`, 7 tests total.
-- `node` — `src/{core,tools}/**/*.test.ts`, pure logic, no DOM;
-- `browser` — everything else under `src/`, real Chromium via Playwright.
-The patterns are strict complements: a file can't fall through both. Verified.
+Toolchain: React 19.2, Vite 8.2, TypeScript 5.9.3, ESLint 10.10 (flat config),
+Tailwind 4.3, Prettier 3.9, Vitest 5 with two projects (`node` for pure logic,
+`browser` for real Chromium via Playwright). CI runs lint and tests before any deploy.
 
-CI (`.github/workflows/vite.yaml`): a `test` job on push and pull request, a
-`deploy` job with `needs: test`, only for pushes to `main` and manual runs.
-Publishing to Pages is unreachable without passing lint and tests.
+The engine core, all pure logic with zero DOM:
 
-Modules ready for plan 2 to build on:
-- `src/core/types.ts` — `Cell`, `CellBounds`, `Emoji`;
-- `src/core/line.ts` — `cellsBetween(from, to): Cell[]`, Bresenham, both endpoints
-  included, coordinates rounded down.
+| Module | What it does |
+|---|---|
+| `core/types.ts` | `Cell`, `CellBounds`, `Emoji` |
+| `core/scene.ts` | Sparse storage of drawn cells on an unbounded grid; `bounds()`, serialisation with a `version` field, shared `keyOf`/`parseKey` |
+| `core/operations.ts` | `Operation`, `applyOperation`, `invertOperation`, `createClearOperation`, `StrokeRecorder` |
+| `core/history.ts` | Undo/redo over already-applied operations; one stroke is one step |
+| `core/camera.ts` | Screen ↔ cell mapping, zoom with a fixed anchor, `visibleBounds` |
+| `core/line.ts` | `cellsBetween`, Bresenham, both endpoints, coordinates floored |
+| `core/export/text.ts` | Scene → text, cropped to the drawing, filler inside the box |
+| `tools/` | `Tool` interface with `onDown`/`onMove`/`onUp`/`onCancel`; brush and eraser |
 
 ## Settled decisions
 
-**TypeScript stays on 5.9.3.** Compiler 7.0 builds the project cleanly, without a
-single code change. It's blocked by `typescript-eslint`: version 8.69 has an
-explicit check that rejects TS 7.0, with support promised starting at 7.1. Tried
-twice, same result both times. Revisit once that support ships.
+**TypeScript stays on 5.9.3.** Compiler 7.0 builds the project cleanly with no code
+changes; `typescript-eslint` 8.69 rejects TS 7.0 by an explicit guard, with support
+promised from 7.1. Tried twice. Revisit when that ships.
 
-**The peer conflict between `eslint-plugin-react` and ESLint 10** is resolved with
-a narrow `overrides` in `package.json`, not a blanket `legacy-peer-deps`. Don't
-replace it with `.npmrc` — that would weaken dependency checking across the whole
-repo.
+**The `eslint-plugin-react` / ESLint 10 peer conflict** is solved by a narrow
+`overrides` entry in `package.json`, not by `legacy-peer-deps`. Do not replace it with
+an `.npmrc`.
 
-**The button border color is set explicitly** (`border-gray-200` in `Tool.tsx`)
-because Tailwind 4 changed the default to `currentColor`. A point fix, not a
-global rule.
+**Everything in the repository is English**, including the documents under `docs/`.
+The spec and plans were originally Russian, and that is exactly how Russian test names
+once reached the source — an implementer copied them out of a plan.
 
-**All code is in English.** The plans and spec are written in Russian, but nothing
-from them is copied into code verbatim. This was already violated once: test names
-made it into the repo in Russian, straight from the plan.
+**Every write to the scene goes through an operation.** `Scene.clear()` was removed
+for this reason: it was a second, non-undoable path, and `Editor.clear()` would have
+made clearing the one action undo could not reverse. Clearing is now
+`createClearOperation`.
 
-## Requirements for later plans
+**The eraser is a real tool, not "a brush painting filler".** It writes `undefined`,
+which deletes the cell. The filler exists only in the text export, so there is no
+"erasing mode" anywhere in the model.
 
-- **Plan 3, pointer handling:** screen coordinates must be snapped to whole cells
-  before calling `cellsBetween`. The function itself is now protected by rounding,
-  but that protection shouldn't be relied on as the normal path.
-- **Plan 3, rendering:** the glyph-centering formula from the spec has been
-  verified against real Chromium metrics (`width` 20.0098,
-  `actualBoundingBoxAscent` 21.5186, `actualBoundingBoxLeft` −0.4395,
-  `actualBoundingBoxRight` 19.6436). The metrics are non-zero, the approach works.
-- **Plan 2, core:** write into the node Vitest project — it's already set up and
-  fast.
+## Open findings from plan 2's final review
 
-## Deferred findings
+These are deliberately left open. The first two are worth fixing before plan 3 builds
+on them.
 
-None of these block work. Address them before merging `foundation` into `main`.
+1. **`onCancel` is untested in effect.** Verified by mutation: making both `onCancel`
+   bodies no-ops leaves all 16 relevant tests green. Every test calls `onDown` again
+   before the next `onMove`, and `onDown` overwrites the stale state independently. The
+   missing case is the one that matters — `onMove` directly after `onCancel`, with no
+   `onDown` between, which is exactly what the input layer will do when a pinch ends.
+   The production code is correct; only its proof is missing.
+2. **`fromJSON` treats a missing `version` like a corrupt payload.** Both return an
+   empty scene. Since the cell shape never changed and only the envelope gained a
+   field, an absent version could safely be read as version 1. Nothing has been
+   persisted yet, so this is not a live bug — but decide it before link-sharing ships,
+   because it contradicts the resilience the same docstring promises.
+3. **The reverse-direction line test proves less than its name claims.** Brute force
+   over all integer pairs in [-5,5]² shows 31% of pairs violate
+   `cellsBetween(b,a) === reverse(cellsBetween(a,b))` — for example
+   `(-5,-5)→(-4,-3)`. The chosen endpoints happen to satisfy it, so the test is stable,
+   but it asserts a property this implementation does not universally have.
 
-1. The bundle grew from 192.52 kB (64.11 gzip) to 234.83 kB (75.56 gzip) after
-   React 19 and Vite 8. No size limits were set anywhere.
-2. `settings.react.version` in `eslint.config.js` is hardcoded as `'19.2'`:
-   `eslint-plugin-react`'s auto-detection fails on ESLint 10. It will go stale
-   silently at the next React major.
-3. The root `packages[""]` entry in `package-lock.json` doesn't reflect the
-   `overrides` field. `npm ci` works; npm will rewrite it on the next write.
-4. The button border color is a literal, not a theme token. Tokens will land in
+## Deferred findings from plan 1
+
+None block work. Address before merging `foundation` into `main`.
+
+1. Bundle grew 192.52 kB → 234.83 kB (64.11 → 75.56 gzip) after React 19 and Vite 8.
+   No size budget was ever set.
+2. `settings.react.version` is hardcoded `'19.2'` in `eslint.config.js` because the
+   plugin's auto-detect crashes on ESLint 10. Will go stale silently at the next major.
+3. `package-lock.json`'s root `packages[""]` does not echo `overrides`. `npm ci` works.
+4. The Tool button's border colour is a literal, not a theme token. Tokens arrive in
    `render/theme.ts` in plan 3.
-5. `.px-1` remains in the built CSS: the class comes from a commented-out
-   `<dialog>` block in `src/components/App/App.tsx`. It will disappear once that
-   component is rewritten in plan 3.
-6. Two high-severity vulnerabilities (ReDoS in `brace-expansion` and `minimatch`)
-   in transitive **dev** dependencies. They don't reach the bundle:
-   `npm audit --omit=dev` reports zero. `npm audit fix` offers a fix.
-7. `tsconfig.node.json` only includes `vite.config.ts` — nothing type-checks
-   `vitest.config.ts`.
-8. `.prettierrc` contains the deprecated `jsxBracketSameLine`; Prettier 3.9 prints
-   a warning on every run.
+5. `.px-1` remains in the built CSS, from a commented-out `<dialog>` in `App.tsx`. It
+   disappears when plan 3 rewrites that component.
+6. Two high-severity ReDoS advisories in transitive **dev** dependencies.
+   `npm audit --omit=dev` reports zero, so nothing reaches users.
+7. `tsconfig.node.json` includes only `vite.config.ts`; `vitest.config.ts` is
+   type-checked by nothing.
+8. `.prettierrc` still carries the deprecated `jsxBracketSameLine`.
+
+## Requirements for plan 3
+
+- **Pointer input must floor screen coordinates to whole cells** via `screenToCell`
+  before calling tools. `cellsBetween` is protected by its own rounding, but that is a
+  safety net, not the intended path.
+- **Do not call `scene.bounds()` per frame.** It is an O(n) scan of every drawn cell.
+  The renderer needs `visibleBounds` plus `get`, never `bounds()`. In particular,
+  `getSnapshot().isEmpty` must be `scene.size === 0`, because `useSyncExternalStore`
+  calls `getSnapshot` on every render.
+- **Cancelling a stroke takes two calls:** `recorder.rollback(scene)` and then
+  `tool.onCancel(ctx)`. The recorder restores the scene; the tool forgets its last
+  cell. Neither does the other's job.
+- **`Editor` must call `history.clear()`** when loading a scene from a link or file —
+  otherwise undo would walk into a scene the operations were never recorded against.
+- **The glyph-centring formula is verified** against real Chromium metrics
+  (`width` 20.0098, `actualBoundingBoxAscent` 21.5186, `actualBoundingBoxLeft` −0.4395,
+  `actualBoundingBoxRight` 19.6436). The metrics are non-zero; the approach works.
+- **Brush and eraser share ~20 identical lines.** Leave it until line, rectangle and
+  fill land, then factor all of them together.
 
 ## How to continue
 
-The next step is to write plan 2 (engine core), covering the spec's "Model"
-section, `core/scene.ts`, `core/operations.ts`, `core/history.ts`,
-`core/camera.ts`, `core/export/text.ts`, and the node-project part of the "Tests"
-section. Then execute it the same way: one task at a time, with review between
-them.
+Write plan 3 from the spec's "Rendering", "Input and tools", "editor/Editor.ts",
+"React shell", "Mobile devices" and "Performance" sections, then execute it one task at
+a time with review between tasks. Consider clearing open findings 1 and 2 above first —
+both are small, and plan 3 builds directly on that code.
