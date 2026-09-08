@@ -142,19 +142,33 @@ ci` from a clean tree passes with the override doing its job: `eslint-plugin-rea
    declares a peer of at most `^9.7` while ESLint 10.10.0 is installed.
 6. ~~`.px-1` in the built CSS.~~ **Closed** by plan 3 deleting the commented-out
    `<dialog>`.
-7. **Still open — the Tool button's border colour is a literal, not a theme token.**
-   `render/theme.ts` exists but holds canvas colours only; the React shell is Tailwind
-   utility classes and has no token source. Needs a decision, not a mechanical fix.
+7. ~~The Tool button's border colour is a literal, not a theme token.~~ **Closed by
+   decision:** the buttons are being redesigned later, and a token source for the React
+   shell belongs to that redesign. `render/theme.ts` holds canvas colours for the 2D
+   context; pulling a Tailwind class into a JS token would be worse than the literal.
 
-## Found while clearing, not yet decided
+## Found while clearing, and fixed
 
-**Prettier is not enforced anywhere.** `npm run lint` does not run it —
-`eslint-config-prettier` only _disables_ conflicting ESLint rules — so nothing checks
-formatting. Nine files disagree with `.prettierrc`, some predating this work
-(`src/core/types.ts`, `src/core/scene.ts`) and some written during it
-(`src/input/pointer.ts`, `src/render/theme.test.ts`). CLAUDE.md documents the Prettier
-conventions as if they were enforced. Either wire `prettier --check` into `lint` and
-reformat, or stop presenting the conventions as binding.
+**Prettier was not enforced anywhere.** `npm run lint` does not run it —
+`eslint-config-prettier` only _disables_ conflicting ESLint rules — so nothing checked
+formatting, and seventeen files disagreed with `.prettierrc` while CLAUDE.md presented the
+conventions as binding.
+
+Fixed with **lefthook** (`lefthook.yml`): a pre-commit hook runs `eslint --fix` then
+`prettier --write` over staged files and re-stages what they repair; what they cannot
+repair ESLint reports and the commit fails. Jobs run in order, never in parallel — both
+write the same files, and ESLint's import sorting should settle before Prettier lays the
+result out. A `prepare` script installs the hooks on `npm install`, so a fresh clone needs
+no setup step.
+
+Verified live rather than merely installed: a deliberately messy staged file was
+reformatted _and_ had its object keys sorted before landing in the commit, and a file
+carrying an unfixable `no-unused-vars` error had its commit rejected.
+
+The whole tree was formatted once so the rule starts from a clean state. Two limits worth
+knowing: `npm run lint` still does not run Prettier, and `git commit --no-verify` skips
+the hook entirely — **CI checks neither**, so unformatted code can still reach `main` if
+someone bypasses the hook.
 
 ## Deferred out of plan 3
 
