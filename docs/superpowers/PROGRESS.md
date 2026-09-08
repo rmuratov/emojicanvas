@@ -15,7 +15,7 @@ All work happens on a single branch, **`foundation`** (44 commits), to be merged
 |---|---|
 | 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, reviewed |
 | 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
-| 3. Rendering, input, editor facade, React port | **Plan not written** — next step |
+| 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Plan written**, not started |
 
 ## What already works
 
@@ -134,7 +134,17 @@ None block work. Address before merging `foundation` into `main`.
 
 ## How to continue
 
-Findings 1 and 2 are cleared, so the code plan 3 builds on is proven. Next: write plan 3
-from the spec's "Rendering", "Input and tools", "editor/Editor.ts", "React shell",
-"Mobile devices" and "Performance" sections, then execute it one task at a time with
-review between tasks.
+Findings 1 and 2 are cleared, so the code plan 3 builds on is proven, and plan 3 is
+written: `plans/2026-09-08-rendering-input-editor.md`, eight tasks. Execute it one task at
+a time with review between tasks.
+
+Its scope is the spec's order of work, steps 4 (rendering), 5 (input — the tools half
+landed in plan 2) and 6 (editor and React port), plus removing the old engine. **Step 7 —
+benchmarks, real-device measurement and tuning the level-of-detail thresholds — is a
+separate plan 4**, together with the space-plus-drag pan gesture the plan defers on
+purpose.
+
+Two deliberate deviations from the spec are recorded in the plan's own
+"One deliberate deviation from the spec" section: the input layer reports screen pixels
+rather than cells (the `Editor` owns the camera, so the `screenToCell` call belongs there),
+and `zoomBy` takes two anchor numbers rather than an anchor object.
