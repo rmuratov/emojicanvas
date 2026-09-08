@@ -71,7 +71,7 @@ undoable like anything else. Only `operations.ts` and `StrokeRecorder` call
 `scene.writeCell`.
 
 **The filler is an export-only concept.** Empty cells hold nothing; the scene simply has no
-key for them. `〰️` (`DEFAULT_FILLER` in `core/export/text.ts`) is written into the *text*
+key for them. `〰️` (`DEFAULT_FILLER` in `core/export/text.ts`) is written into the _text_
 for empty cells inside the drawing's bounding box, because messaging apps trim real spaces
 and that destroys the art on paste. Consequently **the eraser is a real tool that deletes
 cells**, not "a brush painting the filler", and there is no erasing mode anywhere in the

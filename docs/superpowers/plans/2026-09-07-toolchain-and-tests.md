@@ -44,9 +44,11 @@ confirm the project even builds before any upgrades. Without this step there's n
 way to tell what a later upgrade actually broke.
 
 **Files:**
+
 - Modify: none (dependency installation only)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: a working `node_modules` and a confirmed-working old build
 
@@ -82,10 +84,12 @@ copy all work. This is the behavioral baseline for every task that follows.
 ### Task 2: Vite 8, React 19, and the React plugin
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `src/main.tsx` (only if needed)
 
 **Interfaces:**
+
 - Consumes: the working environment from Task 1
 - Produces: the app on React 19 and Vite 8
 
@@ -139,10 +143,12 @@ whether `typescript-eslint` supports it; lint gets upgraded in Task 4, so here
 only `tsc` is checked.
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `tsconfig.json`
 
 **Interfaces:**
+
 - Consumes: the environment from Task 2
 - Produces: a passing type check on TypeScript 7
 
@@ -158,6 +164,7 @@ Run: `npx tsc --noEmit`
 Expected: no errors.
 
 Expected failure points and how to handle them:
+
 - A complaint about `allowImportingTsExtensions` without `noEmit` — `noEmit` is
   already set in `tsconfig.json`, so this shouldn't be an issue.
 - An error on `@ts-ignore` in `src/components/EmojiPicker/EmojiPicker.tsx` —
@@ -204,11 +211,13 @@ rule that was actually used from it was `import/newline-after-import`; blank-lin
 formatting stays with Prettier.
 
 **Files:**
+
 - Create: `eslint.config.js`
 - Delete: `.eslintrc.cjs`
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Consumes: the environment from Task 3
 - Produces: a passing `npm run lint` on ESLint 10
 
@@ -312,12 +321,14 @@ Tailwind 4 is configured from CSS; a separate PostCSS setup is no longer needed 
 a Vite plugin is used instead.
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `vite.config.ts`
 - Modify: `src/index.css`
 - Delete: `tailwind.config.js`, `postcss.config.js`
 
 **Interfaces:**
+
 - Consumes: the environment from Task 4
 - Produces: the same layout on Tailwind 4
 
@@ -390,6 +401,7 @@ because it's the simplest pure function by contract, and plan 2 will need it
 anyway.
 
 **Files:**
+
 - Create: `vitest.config.ts`
 - Create: `src/core/types.ts`
 - Create: `src/core/line.ts`
@@ -397,6 +409,7 @@ anyway.
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Consumes: the environment from Task 5
 - Produces: `npm test` runs the node project; the `Cell` type and the
   `cellsBetween(from: Cell, to: Cell): Cell[]` function are available to plan 2
@@ -454,7 +467,9 @@ import { cellsBetween } from './line'
 
 describe('cellsBetween', () => {
   it('returns a single cell when the points coincide', () => {
-    expect(cellsBetween({ x: 2, y: 3 }, { x: 2, y: 3 })).toEqual([{ x: 2, y: 3 }])
+    expect(cellsBetween({ x: 2, y: 3 }, { x: 2, y: 3 })).toEqual([
+      { x: 2, y: 3 },
+    ])
   })
 
   it('builds a horizontal segment, including both points', () => {
@@ -488,7 +503,12 @@ Create `src/core/types.ts`:
 
 ```ts
 export type Cell = { x: number; y: number }
-export type CellBounds = { maxX: number; maxY: number; minX: number; minY: number }
+export type CellBounds = {
+  maxX: number
+  maxY: number
+  minX: number
+  minY: number
+}
 export type Emoji = string
 ```
 
@@ -573,12 +593,14 @@ The second project is for anything that needs a real browser: canvas, pointer
 events, React components. The provider is Playwright.
 
 **Files:**
+
 - Modify: `vitest.config.ts`
 - Create: `src/render/glyphAtlas.smoke.test.ts`
 - Modify: `package.json`
 - Modify: `.gitignore`
 
 **Interfaces:**
+
 - Consumes: the config from Task 6
 - Produces: `npm test` runs both projects; the browser project is available to
   plans 2 and 3
@@ -616,7 +638,9 @@ export default defineConfig({
             instances: [{ browser: 'chromium' }],
             provider: playwright(),
           },
-          include: ['src/{render,input,editor,ui,components,hooks}/**/*.test.{ts,tsx}'],
+          include: [
+            'src/{render,input,editor,ui,components,hooks}/**/*.test.{ts,tsx}',
+          ],
           name: 'browser',
         },
       },
@@ -691,9 +715,11 @@ git commit -m "test: add Vitest browser project via Playwright"
 ### Task 8: CI
 
 **Files:**
+
 - Modify: `.github/workflows/vite.yaml`
 
 **Interfaces:**
+
 - Consumes: the `lint`, `test`, `build` scripts from previous tasks
 - Produces: CI that checks lint and tests before publishing
 
@@ -702,34 +728,34 @@ git commit -m "test: add Vitest browser project via Playwright"
 Replace the `steps` block of the `deploy` job in `.github/workflows/vite.yaml`:
 
 ```yaml
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-      - name: Lint
-        run: npm run lint
-      - name: Test
-        run: npm test
-      - name: Build
-        run: npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          # Upload dist repository
-          path: './dist'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+steps:
+  - name: Checkout
+    uses: actions/checkout@v5
+  - name: Set up Node
+    uses: actions/setup-node@v5
+    with:
+      node-version: 24
+      cache: 'npm'
+  - name: Install dependencies
+    run: npm ci
+  - name: Install Playwright browsers
+    run: npx playwright install chromium --with-deps
+  - name: Lint
+    run: npm run lint
+  - name: Test
+    run: npm test
+  - name: Build
+    run: npm run build
+  - name: Setup Pages
+    uses: actions/configure-pages@v5
+  - name: Upload artifact
+    uses: actions/upload-pages-artifact@v4
+    with:
+      # Upload dist repository
+      path: './dist'
+  - name: Deploy to GitHub Pages
+    id: deployment
+    uses: actions/deploy-pages@v4
 ```
 
 - [ ] **Step 2: Check the workflow's syntax locally**
@@ -773,7 +799,7 @@ After all tasks are done, all of the following must hold at once:
 - [ ] `npm run lint` passes with no warnings
 - [ ] `npm test` runs both projects and passes
 - [ ] The app behaves in the browser as it did in Task 1 Step 4, appearance
-  unchanged
+      unchanged
 - [ ] The repo has no `.eslintrc.cjs`, `tailwind.config.js`, `postcss.config.js`
 - [ ] `eslint.config.js` and `vitest.config.ts` exist
 

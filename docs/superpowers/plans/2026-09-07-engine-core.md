@@ -49,7 +49,12 @@ from the browser.
 ```ts
 // src/core/types.ts
 export type Cell = { x: number; y: number }
-export type CellBounds = { maxX: number; maxY: number; minX: number; minY: number }
+export type CellBounds = {
+  maxX: number
+  maxY: number
+  minX: number
+  minY: number
+}
 export type Emoji = string
 
 // src/core/line.ts
@@ -61,16 +66,16 @@ both endpoints, and rounds coordinates down.
 
 ## File structure
 
-| File | Responsibility |
-|---|---|
-| `src/core/scene.ts` | Sparse storage of drawn cells, bounds, serialisation |
-| `src/core/operations.ts` | Operation type, apply, invert, stroke recorder |
-| `src/core/history.ts` | Undo/redo stack on top of operations |
-| `src/core/camera.ts` | Screen ↔ cells, zoom, visible range |
-| `src/core/export/text.ts` | Scene → text, cropped to bounds, with the filler |
-| `src/tools/types.ts` | Tool interface and its context |
-| `src/tools/brush.ts` | The "brush" tool |
-| `src/tools/eraser.ts` | The "eraser" tool |
+| File                      | Responsibility                                       |
+| ------------------------- | ---------------------------------------------------- |
+| `src/core/scene.ts`       | Sparse storage of drawn cells, bounds, serialisation |
+| `src/core/operations.ts`  | Operation type, apply, invert, stroke recorder       |
+| `src/core/history.ts`     | Undo/redo stack on top of operations                 |
+| `src/core/camera.ts`      | Screen ↔ cells, zoom, visible range                  |
+| `src/core/export/text.ts` | Scene → text, cropped to bounds, with the filler     |
+| `src/tools/types.ts`      | Tool interface and its context                       |
+| `src/tools/brush.ts`      | The "brush" tool                                     |
+| `src/tools/eraser.ts`     | The "eraser" tool                                    |
 
 Each file gets its own test file alongside it, suffixed `.test.ts`.
 
@@ -79,12 +84,15 @@ Each file gets its own test file alongside it, suffixed `.test.ts`.
 ### Task 1: Scene — sparse storage
 
 **Files:**
+
 - Create: `src/core/scene.ts`
 - Test: `src/core/scene.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Cell`, `CellBounds`, `Emoji` from `src/core/types.ts`
 - Produces:
+
   ```ts
   export type SceneData = { cells: Record<string, Emoji> }
   export class Scene {
@@ -99,6 +107,7 @@ Each file gets its own test file alongside it, suffixed `.test.ts`.
     writeCell(x: number, y: number, value: Emoji | undefined): void
   }
   ```
+
   `writeCell` is a low-level write meant only for `operations.ts`. Everything
   else reads the scene but never writes to it directly.
 
@@ -347,13 +356,16 @@ git commit -m "feat: add sparse Scene storage for the unbounded grid"
 ### Task 2: Operations — reversible changes
 
 **Files:**
+
 - Create: `src/core/operations.ts`
 - Test: `src/core/operations.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Scene` and its `writeCell`/`get` from `src/core/scene.ts`; `Emoji` from
   `src/core/types.ts`
 - Produces:
+
   ```ts
   export type CellChange = { value: Emoji | undefined; x: number; y: number }
   export type Operation = { changes: readonly CellChange[]; label: string }
@@ -363,10 +375,16 @@ git commit -m "feat: add sparse Scene storage for the unbounded grid"
 
   export class StrokeRecorder {
     commit(label: string): null | { inverse: Operation; op: Operation }
-    record(scene: Scene, x: number, y: number, value: Emoji | undefined): boolean
+    record(
+      scene: Scene,
+      x: number,
+      y: number,
+      value: Emoji | undefined,
+    ): boolean
     rollback(scene: Scene): void
   }
   ```
+
   `invertOperation` reads the scene's state **before** the operation is applied.
 
 - [ ] **Step 1: Write a failing test**
@@ -376,11 +394,7 @@ Create `src/core/operations.test.ts`:
 ```ts
 import { describe, expect, it } from 'vitest'
 
-import {
-  applyOperation,
-  invertOperation,
-  StrokeRecorder,
-} from './operations'
+import { applyOperation, invertOperation, StrokeRecorder } from './operations'
 import { Scene } from './scene'
 
 describe('applyOperation', () => {
@@ -617,7 +631,12 @@ export class StrokeRecorder {
    * Writes one cell and remembers its previous value. Returns false when the
    * cell already held this value, so callers can skip redundant repaints.
    */
-  record(scene: Scene, x: number, y: number, value: Emoji | undefined): boolean {
+  record(
+    scene: Scene,
+    x: number,
+    y: number,
+    value: Emoji | undefined,
+  ): boolean {
     const current = scene.get(x, y)
 
     if (current === value) return false
@@ -680,12 +699,15 @@ git commit -m "feat: add reversible operations and stroke recorder"
 ### Task 3: History — undo and redo
 
 **Files:**
+
 - Create: `src/core/history.ts`
 - Test: `src/core/history.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Operation`, `applyOperation` from `src/core/operations.ts`; `Scene`
 - Produces:
+
   ```ts
   export const DEFAULT_HISTORY_LIMIT = 100
 
@@ -699,6 +721,7 @@ git commit -m "feat: add reversible operations and stroke recorder"
     undo(scene: Scene): boolean
   }
   ```
+
   `commit` takes an operation that has **already been applied** to the scene.
 
 - [ ] **Step 1: Write a failing test**
@@ -936,10 +959,12 @@ git commit -m "feat: add undo/redo history over operations"
 ### Task 4: Camera — screen, cells and zoom
 
 **Files:**
+
 - Create: `src/core/camera.ts`
 - Test: `src/core/camera.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Cell`, `CellBounds` from `src/core/types.ts`
 - Produces:
   ```ts
@@ -1120,13 +1145,17 @@ describe('zoomAt', () => {
     const anchorPx = 200
     const anchorPy = 150
 
-    const worldXBefore = (anchorPx + camera.offsetX) / cellSizeAt(30, camera.zoom)
-    const worldYBefore = (anchorPy + camera.offsetY) / cellSizeAt(30, camera.zoom)
+    const worldXBefore =
+      (anchorPx + camera.offsetX) / cellSizeAt(30, camera.zoom)
+    const worldYBefore =
+      (anchorPy + camera.offsetY) / cellSizeAt(30, camera.zoom)
 
     const zoomed = zoomAt(camera, 2, anchorPx, anchorPy)
 
-    const worldXAfter = (anchorPx + zoomed.offsetX) / cellSizeAt(30, zoomed.zoom)
-    const worldYAfter = (anchorPy + zoomed.offsetY) / cellSizeAt(30, zoomed.zoom)
+    const worldXAfter =
+      (anchorPx + zoomed.offsetX) / cellSizeAt(30, zoomed.zoom)
+    const worldYAfter =
+      (anchorPy + zoomed.offsetY) / cellSizeAt(30, zoomed.zoom)
 
     expect(worldXAfter).toBeCloseTo(worldXBefore, 10)
     expect(worldYAfter).toBeCloseTo(worldYBefore, 10)
@@ -1291,10 +1320,12 @@ git commit -m "feat: add camera mapping screen pixels to grid cells"
 ### Task 5: Text export
 
 **Files:**
+
 - Create: `src/core/export/text.ts`
 - Test: `src/core/export/text.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Scene` from `src/core/scene.ts`
 - Produces:
   ```ts
@@ -1375,9 +1406,7 @@ describe('toText', () => {
     scene.writeCell(0, 2, 'c')
     scene.writeCell(1, 0, 'd')
 
-    expect(toText(scene)).toBe(
-      `ad\nb${DEFAULT_FILLER}\nc${DEFAULT_FILLER}`,
-    )
+    expect(toText(scene)).toBe(`ad\nb${DEFAULT_FILLER}\nc${DEFAULT_FILLER}`)
   })
 
   it('works entirely in negative coordinates', () => {
@@ -1469,6 +1498,7 @@ git commit -m "feat: add text export cropped to the drawing bounds"
 ### Task 6: Tools — brush and eraser
 
 **Files:**
+
 - Create: `src/tools/types.ts`
 - Create: `src/tools/brush.ts`
 - Create: `src/tools/eraser.ts`
@@ -1476,6 +1506,7 @@ git commit -m "feat: add text export cropped to the drawing bounds"
 - Test: `src/tools/eraser.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Cell`, `Emoji` from `src/core/types.ts`; `Scene`; `StrokeRecorder` from
   `src/core/operations.ts`; `cellsBetween` from `src/core/line.ts`
 - Produces:

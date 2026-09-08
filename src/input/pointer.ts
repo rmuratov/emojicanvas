@@ -17,7 +17,6 @@ export type PointerHandlers = {
   onZoom(factor: number, anchorPx: number, anchorPy: number): void
 }
 
-
 /** How far a wheel notch zooms. Tuned so one notch is a gentle step. */
 const WHEEL_ZOOM_SENSITIVITY = 0.002
 

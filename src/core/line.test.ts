@@ -4,7 +4,9 @@ import { cellsBetween } from './line'
 
 describe('cellsBetween', () => {
   it('returns a single cell when both points are the same', () => {
-    expect(cellsBetween({ x: 2, y: 3 }, { x: 2, y: 3 })).toEqual([{ x: 2, y: 3 }])
+    expect(cellsBetween({ x: 2, y: 3 }, { x: 2, y: 3 })).toEqual([
+      { x: 2, y: 3 },
+    ])
   })
 
   it('walks a horizontal segment including both endpoints', () => {

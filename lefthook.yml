@@ -1,0 +1,21 @@
+# Formatting and lint autofixes run on commit, so the conventions in
+# CLAUDE.md are enforced rather than merely documented. Nothing checked
+# formatting before this: `npm run lint` does not run Prettier, because
+# eslint-config-prettier only *disables* the ESLint rules that would
+# conflict with it.
+#
+# Jobs run in order, never in parallel: both write to the same files, and
+# ESLint's import sorting should settle before Prettier lays the result out.
+# Whatever the fixers can repair they repair and re-stage; whatever they
+# cannot, ESLint reports and the commit fails.
+pre-commit:
+  jobs:
+    - name: eslint
+      glob: '*.{ts,tsx}'
+      run: npx eslint --fix --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+    - name: prettier
+      glob: '*.{ts,tsx,js,mjs,cjs,json,md,css,yml,yaml}'
+      run: npx prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true

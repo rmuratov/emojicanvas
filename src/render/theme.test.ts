@@ -22,9 +22,9 @@ describe('levelOfDetail', () => {
   })
 
   it('draws blocks exactly at the block threshold', () => {
-    expect(levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.blockLodThresholdPx)).toBe(
-      'color',
-    )
+    expect(
+      levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.blockLodThresholdPx),
+    ).toBe('color')
   })
 
   it('merges cells into blocks below the block threshold', () => {

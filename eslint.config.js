@@ -12,7 +12,9 @@ import tseslint from 'typescript-eslint'
 // (getReactVersionFromContext throws), so the version has to be supplied.
 // Read it from the installed package rather than writing a literal, which
 // would go stale silently at the next React upgrade.
-const reactVersion = createRequire(import.meta.url)('react/package.json').version
+const reactVersion = createRequire(import.meta.url)(
+  'react/package.json',
+).version
 
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'node_modules'] },

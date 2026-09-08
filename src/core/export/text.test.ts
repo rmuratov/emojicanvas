@@ -56,9 +56,7 @@ describe('toText', () => {
     scene.writeCell(0, 2, 'c')
     scene.writeCell(1, 0, 'd')
 
-    expect(toText(scene)).toBe(
-      `ad\nb${DEFAULT_FILLER}\nc${DEFAULT_FILLER}`,
-    )
+    expect(toText(scene)).toBe(`ad\nb${DEFAULT_FILLER}\nc${DEFAULT_FILLER}`)
   })
 
   it('works entirely in negative coordinates', () => {

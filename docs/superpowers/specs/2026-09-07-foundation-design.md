@@ -14,14 +14,14 @@ of several outputs, alongside raster export and a link to the editor.
 
 Planned features (not implemented in this iteration, but the foundation must support them):
 
-| Feature | Requirement on the foundation |
-|---|---|
-| Rasterizing an image into an emoji mosaic | Bulk cell writes in a single operation |
-| Paint tools: line, rectangle, fill | A tool abstraction that produces operations |
-| Undo/redo | Reversible operations (part of this iteration) |
-| Export to PNG/JPG | Rendering not tied to the on-screen canvas |
-| Sharing a link to the editor | The scene is pure, serializable data |
-| Pixel-art redesign | View parameters factored out of rendering logic |
+| Feature                                   | Requirement on the foundation                   |
+| ----------------------------------------- | ----------------------------------------------- |
+| Rasterizing an image into an emoji mosaic | Bulk cell writes in a single operation          |
+| Paint tools: line, rectangle, fill        | A tool abstraction that produces operations     |
+| Undo/redo                                 | Reversible operations (part of this iteration)  |
+| Export to PNG/JPG                         | Rendering not tied to the on-screen canvas      |
+| Sharing a link to the editor              | The scene is pure, serializable data            |
+| Pixel-art redesign                        | View parameters factored out of rendering logic |
 
 Zoom and panning were originally on this list but were pulled into this iteration's scope:
 on a phone a finger covers three or four cells, and without zoom, precise drawing is
@@ -150,7 +150,7 @@ class Scene {
   has(x: number, y: number): boolean
   readonly size: number
   entries(): IterableIterator<[Cell, Emoji]>
-  bounds(): CellBounds | null          // null when the scene is empty
+  bounds(): CellBounds | null // null when the scene is empty
   toJSON(): SceneData
   static fromJSON(data: SceneData): Scene
 }
@@ -175,7 +175,7 @@ type CellChange = { x: number; y: number; value: Emoji | undefined } // undefine
 type Operation = { label: string; changes: readonly CellChange[] }
 
 function applyOperation(scene: Scene, op: Operation): void
-function invertOperation(scene: Scene, op: Operation): Operation  // reads state BEFORE the operation is applied
+function invertOperation(scene: Scene, op: Operation): Operation // reads state BEFORE the operation is applied
 ```
 
 A single operation describes an arbitrary number of cells. A brush stroke is one operation,
@@ -203,8 +203,8 @@ the start of a navigation gesture instead.
 
 ```ts
 class History {
-  constructor(limit?: number)          // defaults to 100 operations
-  commit(op: Operation, inverse: Operation): void  // the operation is already applied
+  constructor(limit?: number) // defaults to 100 operations
+  commit(op: Operation, inverse: Operation): void // the operation is already applied
   undo(scene: Scene): boolean
   redo(scene: Scene): boolean
   readonly canUndo: boolean
@@ -221,9 +221,24 @@ class History {
 type Camera = { offsetX: number; offsetY: number; zoom: number } // offset in world pixels
 
 function cellSizeAt(baseCellSize: number, zoom: number): number
-function screenToCell(camera: Camera, baseCellSize: number, px: number, py: number): Cell
-function cellToScreen(camera: Camera, baseCellSize: number, x: number, y: number): { px: number; py: number }
-function visibleBounds(camera: Camera, baseCellSize: number, width: number, height: number): CellBounds
+function screenToCell(
+  camera: Camera,
+  baseCellSize: number,
+  px: number,
+  py: number,
+): Cell
+function cellToScreen(
+  camera: Camera,
+  baseCellSize: number,
+  x: number,
+  y: number,
+): { px: number; py: number }
+function visibleBounds(
+  camera: Camera,
+  baseCellSize: number,
+  width: number,
+  height: number,
+): CellBounds
 ```
 
 `screenToCell` uses `Math.floor`, so it works correctly in the negative range.
@@ -235,7 +250,7 @@ its own dedicated test.
 ### core/line.ts
 
 ```ts
-function cellsBetween(from: Cell, to: Cell): Cell[]  // Bresenham, both endpoints included
+function cellsBetween(from: Cell, to: Cell): Cell[] // Bresenham, both endpoints included
 ```
 
 Fixes gaps from fast drawing and will be reused by the future "line" tool.
@@ -243,7 +258,7 @@ Fixes gaps from fast drawing and will be reused by the future "line" tool.
 ### core/export/text.ts
 
 ```ts
-function toText(scene: Scene, filler?: string): string  // filler defaults to '〰️'
+function toText(scene: Scene, filler?: string): string // filler defaults to '〰️'
 ```
 
 Takes `bounds()`, walks the rectangle row by row top to bottom, substituting the filler into
@@ -268,7 +283,13 @@ regardless of how often pointer events arrive.
 function renderScene(
   ctx: CanvasRenderingContext2D,
   scene: Scene,
-  opts: { camera: Camera; theme: Theme; width: number; height: number; atlas: GlyphAtlas },
+  opts: {
+    camera: Camera
+    theme: Theme
+    width: number
+    height: number
+    atlas: GlyphAtlas
+  },
 ): void
 ```
 
@@ -281,8 +302,8 @@ function with a different argument, not a new rendering path.
 ```ts
 class GlyphAtlas {
   constructor(dpr: number, fontStack: string)
-  get(emoji: Emoji, cellSizePx: number): CanvasImageSource  // rasterises on first use
-  averageColor(emoji: Emoji): string                        // mean glyph colour, for LOD
+  get(emoji: Emoji, cellSizePx: number): CanvasImageSource // rasterises on first use
+  averageColor(emoji: Emoji): string // mean glyph colour, for LOD
   clear(): void
 }
 ```
@@ -351,10 +372,10 @@ function attachPointerInput(
     onDrawStart(cell: Cell): void
     onDrawMove(cell: Cell): void
     onDrawEnd(): void
-    onPan(dx: number, dy: number): void                       // in screen pixels
+    onPan(dx: number, dy: number): void // in screen pixels
     onZoom(factor: number, anchor: { px: number; py: number }): void
   },
-): () => void   // returns a detach function
+): () => void // returns a detach function
 ```
 
 A path is filled in between the previous and current cell via `cellsBetween`.
@@ -407,11 +428,11 @@ class Editor {
   redo(): void
   zoomBy(factor: number, anchor?: { px: number; py: number }): void
   panBy(dx: number, dy: number): void
-  resetView(): void               // back to zoom 1, content centred
+  resetView(): void // back to zoom 1, content centred
   toText(): string
   subscribe(listener: () => void): () => void
-  getSnapshot(): EditorState      // { brush, toolId, canUndo, canRedo, isEmpty, zoom }
-  destroy(): void                 // removes listeners, ResizeObserver and rAF
+  getSnapshot(): EditorState // { brush, toolId, canUndo, canRedo, isEmpty, zoom }
+  destroy(): void // removes listeners, ResizeObserver and rAF
 }
 ```
 
@@ -482,19 +503,19 @@ hardware; a benchmark regression is a reason to investigate, not to raise the th
 
 ## Dependency updates
 
-| Package | Was | Becomes |
-|---|---|---|
-| react, react-dom | 18.2 | 19.2 |
-| vite | 4.4 | 8.2 |
-| @vitejs/plugin-react | 4.0 | 6.1 |
-| typescript | 5.0 | 7.0 |
-| eslint | 8.44 | 10.10 (flat config) |
-| typescript-eslint | 5.61 | 8.69 |
-| eslint-plugin-perfectionist | 1.5 | 5.11 |
-| eslint-plugin-react-hooks | 4.6 | 7.1 |
-| tailwindcss | 3.3 | 4.3 |
-| prettier | 3.0 | 3.9 |
-| emoji-picker-element | 1.18 | 1.29 |
+| Package                     | Was  | Becomes             |
+| --------------------------- | ---- | ------------------- |
+| react, react-dom            | 18.2 | 19.2                |
+| vite                        | 4.4  | 8.2                 |
+| @vitejs/plugin-react        | 4.0  | 6.1                 |
+| typescript                  | 5.0  | 7.0                 |
+| eslint                      | 8.44 | 10.10 (flat config) |
+| typescript-eslint           | 5.61 | 8.69                |
+| eslint-plugin-perfectionist | 1.5  | 5.11                |
+| eslint-plugin-react-hooks   | 4.6  | 7.1                 |
+| tailwindcss                 | 3.3  | 4.3                 |
+| prettier                    | 3.0  | 3.9                 |
+| emoji-picker-element        | 1.18 | 1.29                |
 
 Structural consequences:
 
@@ -583,16 +604,16 @@ one address. Mixing the two would make the cause of a failure ambiguous.
 - **TypeScript 7** — the new native compiler. Compatibility with `typescript-eslint` is
   checked at step 1. If it doesn't work, roll back to TypeScript 5.9; the rest of the plan
   is unchanged.
-  - *Check result (Task 3, 2026-09-07):* `tsc --noEmit` and `npm run build` on
+  - _Check result (Task 3, 2026-09-07):_ `tsc --noEmit` and `npm run build` on
     TypeScript 7.0.2 passed with no errors, but `npm run lint` failed:
     `@typescript-eslint/parser` 5.61.0 couldn't load the parser
     (`TypeError: Cannot read properties of undefined (reading 'BarBarToken')` in
     `typescript-estree`). Since migrating ESLint is a separate task (Task 4), rolled back
     to `typescript@^5.9.3`, on which `tsc`, `build` and `lint` pass cleanly. The decision on
     TypeScript 7 should be revisited after `typescript-eslint` is updated in Task 4.
-  - *Recheck (Task 4, 2026-09-07):* after migrating to ESLint 10 flat config and
+  - _Recheck (Task 4, 2026-09-07):_ after migrating to ESLint 10 flat config and
     `typescript-eslint@8.69.0`, tried again: `npm install -D typescript@^7.0.0
-    --legacy-peer-deps`, then `npm run build` and `npm run lint`. `tsc` (v7.0.2) and
+--legacy-peer-deps`, then `npm run build` and `npm run lint`. `tsc` (v7.0.2) and
     `vite build` again passed with no errors and no source changes. This time
     `npm run lint` failed not from a parser crash but from an explicit guard in
     `typescript-eslint` itself: `Error: typescript-eslint does not support TS 7.0.` with the

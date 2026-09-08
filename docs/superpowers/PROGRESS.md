@@ -11,12 +11,12 @@ All work happens on a single branch, **`foundation`** (44 commits), to be merged
 `main` locally once all three plans are done. Nothing is pushed. `main` sits at
 `a11e969` and matches `origin/main` exactly.
 
-| Plan | Status |
-|---|---|
-| 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, reviewed |
-| 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
-| 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Done**; all 8 tasks executed |
-| 4. Performance: benchmarks, real-device measurement, LOD thresholds | **Plan not written** — next step |
+| Plan                                                                                          | Status                                                   |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`)              | **Done**, reviewed                                       |
+| 2. Engine core (`plans/2026-09-07-engine-core.md`)                                            | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
+| 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Done**; all 8 tasks executed                           |
+| 4. Performance: benchmarks, real-device measurement, LOD thresholds                           | **Plan not written** — next step                         |
 
 ## What already works
 
@@ -36,27 +36,27 @@ Tailwind 4.3, Prettier 3.9, Vitest 5 with two projects (`node` for pure logic,
 
 The engine core, all pure logic with zero DOM:
 
-| Module | What it does |
-|---|---|
-| `core/types.ts` | `Cell`, `CellBounds`, `Emoji` |
-| `core/scene.ts` | Sparse storage of drawn cells on an unbounded grid; `bounds()`, serialisation with a `version` field, shared `keyOf`/`parseKey` |
-| `core/operations.ts` | `Operation`, `applyOperation`, `invertOperation`, `createClearOperation`, `StrokeRecorder` |
-| `core/history.ts` | Undo/redo over already-applied operations; one stroke is one step |
-| `core/camera.ts` | Screen ↔ cell mapping, zoom with a fixed anchor, `visibleBounds` |
-| `core/line.ts` | `cellsBetween`, Bresenham, both endpoints, coordinates floored |
-| `core/export/text.ts` | Scene → text, cropped to the drawing, filler inside the box |
-| `tools/` | `Tool` interface with `onDown`/`onMove`/`onUp`/`onCancel`; brush and eraser |
+| Module                | What it does                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `core/types.ts`       | `Cell`, `CellBounds`, `Emoji`                                                                                                   |
+| `core/scene.ts`       | Sparse storage of drawn cells on an unbounded grid; `bounds()`, serialisation with a `version` field, shared `keyOf`/`parseKey` |
+| `core/operations.ts`  | `Operation`, `applyOperation`, `invertOperation`, `createClearOperation`, `StrokeRecorder`                                      |
+| `core/history.ts`     | Undo/redo over already-applied operations; one stroke is one step                                                               |
+| `core/camera.ts`      | Screen ↔ cell mapping, zoom with a fixed anchor, `visibleBounds`                                                                |
+| `core/line.ts`        | `cellsBetween`, Bresenham, both endpoints, coordinates floored                                                                  |
+| `core/export/text.ts` | Scene → text, cropped to the drawing, filler inside the box                                                                     |
+| `tools/`              | `Tool` interface with `onDown`/`onMove`/`onUp`/`onCancel`; brush and eraser                                                     |
 
 Plan 3 added the layers above it:
 
-| Module | What it does |
-|---|---|
-| `render/theme.ts` | Colours, base cell size, font stack, level-of-detail thresholds, `levelOfDetail` |
-| `render/glyphAtlas.ts` | Rasterises each emoji once per fixed step (16/32/64/128); centres on measured metrics; caches average colour |
-| `render/scene.ts` | `renderScene` — one frame into a supplied context, confined to `visibleBounds` |
-| `input/pointer.ts` | Pointer Events; one pointer draws, two navigate; wheel and middle-button drag |
-| `editor/Editor.ts` | The facade: canvas, camera, rAF loop, tools, `useSyncExternalStore` contract |
-| `hooks/useEditor.ts`, `hooks/useEditorState.ts` | React bridge, StrictMode-safe |
+| Module                                          | What it does                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `render/theme.ts`                               | Colours, base cell size, font stack, level-of-detail thresholds, `levelOfDetail`                             |
+| `render/glyphAtlas.ts`                          | Rasterises each emoji once per fixed step (16/32/64/128); centres on measured metrics; caches average colour |
+| `render/scene.ts`                               | `renderScene` — one frame into a supplied context, confined to `visibleBounds`                               |
+| `input/pointer.ts`                              | Pointer Events; one pointer draws, two navigate; wheel and middle-button drag                                |
+| `editor/Editor.ts`                              | The facade: canvas, camera, rAF loop, tools, `useSyncExternalStore` contract                                 |
+| `hooks/useEditor.ts`, `hooks/useEditorState.ts` | React bridge, StrictMode-safe                                                                                |
 
 ## Settled decisions
 
@@ -84,7 +84,7 @@ made clearing the one action undo could not reverse. Clearing is now
 reason `zoomBy` takes two anchor numbers rather than an anchor object, matching
 `camera.zoomAt` and avoiding an allocation per wheel notch.
 
-**A serialised scene with no `version` is version 1.** `fromJSON` rejects a *stated*
+**A serialised scene with no `version` is version 1.** `fromJSON` rejects a _stated_
 version it does not understand — a future format may not be readable at all — but an
 absent one is read as version 1, because the cell shape has never changed and only the
 envelope gained the field. Rejecting it would have discarded a drawing this build
@@ -123,7 +123,7 @@ decision: no budget is being set until the feature work is done.**
    was renamed to `bracketSameLine` and held the default value, so formatting is
    unchanged.
 2. ~~`vitest.config.ts` is type-checked by nothing.~~ **Closed, and it was worse than
-   recorded.** Adding it to `tsconfig.node.json`'s `include` is *not* enough: plain `tsc`
+   recorded.** Adding it to `tsconfig.node.json`'s `include` is _not_ enough: plain `tsc`
    does not check referenced projects, so a deliberate type error still passed. The
    `references`/`composite` pair existed only for a link `tsc` never honoured; both are
    gone, and `npm run build` now runs `tsc -p tsconfig.node.json` explicitly. Verified by
@@ -135,10 +135,10 @@ decision: no budget is being set until the feature work is done.**
 4. ~~Two high-severity ReDoS advisories in dev dependencies.~~ **Closed.** A fix existed
    this time; `npm audit fix` took it. Zero vulnerabilities including dev.
 5. ~~`package-lock.json`'s root `packages[""]` does not echo `overrides`.~~ **Closed as
-   not-a-defect.** npm 11 does not echo root `overrides` there *at all* — a freshly
+   not-a-defect.** npm 11 does not echo root `overrides` there _at all_ — a freshly
    generated lockfile does not either, so the expectation was wrong. The lockfile was
    regenerated to `lockfileVersion` 3 anyway (zero version bumps, no removals), and `npm
-   ci` from a clean tree passes with the override doing its job: `eslint-plugin-react`
+ci` from a clean tree passes with the override doing its job: `eslint-plugin-react`
    declares a peer of at most `^9.7` while ESLint 10.10.0 is installed.
 6. ~~`.px-1` in the built CSS.~~ **Closed** by plan 3 deleting the commented-out
    `<dialog>`.
@@ -149,7 +149,7 @@ decision: no budget is being set until the feature work is done.**
 ## Found while clearing, not yet decided
 
 **Prettier is not enforced anywhere.** `npm run lint` does not run it —
-`eslint-config-prettier` only *disables* conflicting ESLint rules — so nothing checks
+`eslint-config-prettier` only _disables_ conflicting ESLint rules — so nothing checks
 formatting. Nine files disagree with `.prettierrc`, some predating this work
 (`src/core/types.ts`, `src/core/scene.ts`) and some written during it
 (`src/input/pointer.ts`, `src/render/theme.test.ts`). CLAUDE.md documents the Prettier
@@ -211,6 +211,6 @@ merges into `main`:
    Brute force over every integer pair in [-5,5]² confirmed the finding exactly: 31.5% of
    pairs violate the symmetry, and the named counterexample `(-5,-5)→(-4,-3)` is real —
    forward goes through `(-5,-4)`, backward through `(-4,-4)`. The test now asserts what
-   *does* hold universally (endpoints, length, connectivity, all verified by brute force
+   _does_ hold universally (endpoints, length, connectivity, all verified by brute force
    over the same range) and pins the asymmetry with that counterexample so nobody
    "fixes" it by accident.

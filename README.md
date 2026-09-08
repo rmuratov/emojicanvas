@@ -42,7 +42,7 @@ with native ones.
 
 As emoji artists, we want to leave empty spaces in our drawings. At the same time, we want to preserve the position of every other emoji on our canvas. We need something that has the same width as an emoji, but invisible. What should be used to represent empty spaces?
 
-* Space. The obvious option, but unfortunately messaging apps trim them, so our art falls apart.
-* Some other invisible symbol. I tried a lot, and [Halfwidth Hangul Filler](https://www.compart.com/en/unicode/U+FFA0) repeated three times was the closest to the desired behavior but not ideal. Maybe I should examine more such symbols and their combinations.
-* Other emoji symbol, that do not occupy much space. This is where I stop. Right now, EmojiCanvas uses 〰️ as a filler. It could use ➖, but 〰️ looks funnier.
-ﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠ
+- Space. The obvious option, but unfortunately messaging apps trim them, so our art falls apart.
+- Some other invisible symbol. I tried a lot, and [Halfwidth Hangul Filler](https://www.compart.com/en/unicode/U+FFA0) repeated three times was the closest to the desired behavior but not ideal. Maybe I should examine more such symbols and their combinations.
+- Other emoji symbol, that do not occupy much space. This is where I stop. Right now, EmojiCanvas uses 〰️ as a filler. It could use ➖, but 〰️ looks funnier.
+  ﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠ

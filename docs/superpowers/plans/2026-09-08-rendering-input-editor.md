@@ -47,12 +47,12 @@ threshold, and nothing here needs one.
 - **`src/core` and `src/tools` stay untouched.** They are finished and tested. If something
   there looks wrong, stop and report it rather than editing it.
 - Tests for everything this plan creates run in the **browser project**: `vitest.config.ts`
-  routes `src/{core,tools}/**/*.test.ts` to the node project and *everything else* to the
+  routes `src/{core,tools}/**/*.test.ts` to the node project and _everything else_ to the
   browser project. Do not add `src/render`, `src/input`, `src/editor` or `src/components`
   to the node project's `include` — a path matching both projects runs twice.
 - The finished app must look and behave like the old one for everything the old one did:
   same toolbar markup, same Tailwind classes, `❤️` as the starting brush, `〰️` as the
-  export filler, white background, `darkgrey` grid. What is *added* is undo, redo, reset
+  export filler, white background, `darkgrey` grid. What is _added_ is undo, redo, reset
   view, panning and zooming.
 
 ## Existing contract
@@ -62,7 +62,12 @@ Everything below is already written and tested. Use it; do not rewrite it.
 ```ts
 // src/core/types.ts
 export type Cell = { x: number; y: number }
-export type CellBounds = { maxX: number; maxY: number; minX: number; minY: number }
+export type CellBounds = {
+  maxX: number
+  maxY: number
+  minX: number
+  minY: number
+}
 export type Emoji = string
 
 // src/core/scene.ts
@@ -107,7 +112,12 @@ export type Camera = { offsetX: number; offsetY: number; zoom: number }
 export const MAX_ZOOM = 4
 export const MIN_ZOOM = 0.1
 export function cellSizeAt(baseCellSize: number, zoom: number): number
-export function cellToScreen(camera, baseCellSize, x, y): { px: number; py: number }
+export function cellToScreen(
+  camera,
+  baseCellSize,
+  x,
+  y,
+): { px: number; py: number }
 export function clampZoom(zoom: number): number
 export function createCamera(): Camera
 export function screenToCell(camera, baseCellSize, px, py): Cell
@@ -126,7 +136,11 @@ export interface Tool {
   onMove(cell: Cell, ctx: ToolContext): void
   onUp(ctx: ToolContext): void
 }
-export type ToolContext = { brush: Emoji; recorder: StrokeRecorder; scene: Scene }
+export type ToolContext = {
+  brush: Emoji
+  recorder: StrokeRecorder
+  scene: Scene
+}
 
 // src/tools/brush.ts, src/tools/eraser.ts
 export function createBrushTool(): Tool
@@ -138,7 +152,7 @@ review:
 
 - **`camera.offsetX`/`offsetY` are the world-pixel coordinates of the viewport's top-left
   corner.** A screen point `px` is world pixel `px + offsetX`. Increasing the offset moves
-  the viewport right, which moves the *content* left.
+  the viewport right, which moves the _content_ left.
 - **Cancelling a stroke takes two calls:** `recorder.rollback(scene)` and then
   `tool.onCancel(ctx)`. The recorder restores the scene; the tool forgets its last cell.
   Neither does the other's job, and both are needed.
@@ -173,23 +187,23 @@ Nothing else in the spec changes.
 
 ## File structure
 
-| File | Responsibility |
-|---|---|
-| `src/render/theme.ts` | Colours, base cell size, font stack, level-of-detail thresholds and the pure function that picks a level. No canvas. |
-| `src/render/glyphAtlas.ts` | Rasterises each emoji once per size step; caches the buffer and the glyph's average colour. |
-| `src/render/scene.ts` | `renderScene` — one full frame into a supplied 2D context, confined to `visibleBounds`. |
-| `src/render/index.ts` | Barrel. |
-| `src/input/pointer.ts` | Pointer Events, wheel and space/middle-button drag → drawing, pan and zoom callbacks in screen pixels. Returns a detach function. |
-| `src/input/index.ts` | Barrel. |
-| `src/editor/Editor.ts` | The facade: owns canvas, camera, scene, history, atlas, tools, the rAF loop and the `useSyncExternalStore` contract. |
-| `src/editor/index.ts` | Barrel. |
-| `src/hooks/useEditor.ts` | Creates one `Editor` per mount, StrictMode-safe, destroys it on unmount. |
-| `src/hooks/useEditorState.ts` | `useSyncExternalStore` over an `Editor`. |
-| `src/components/App/App.tsx` | Rewritten against `Editor`; gains undo, redo and reset-view buttons. |
-| `src/components/Tool/Tool.tsx` | Class-list construction fixed; gains `disabled`. |
-| `src/components/EmojiPicker/EmojiPicker.tsx` | `@ts-ignore` replaced by a typed custom element. |
-| `src/hooks/useEmojiPicker.ts` | Listener removed on unmount; `console.log` deleted. |
-| `src/types/emoji-picker.d.ts` | The `emoji-picker` JSX declaration. |
+| File                                         | Responsibility                                                                                                                    |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/render/theme.ts`                        | Colours, base cell size, font stack, level-of-detail thresholds and the pure function that picks a level. No canvas.              |
+| `src/render/glyphAtlas.ts`                   | Rasterises each emoji once per size step; caches the buffer and the glyph's average colour.                                       |
+| `src/render/scene.ts`                        | `renderScene` — one full frame into a supplied 2D context, confined to `visibleBounds`.                                           |
+| `src/render/index.ts`                        | Barrel.                                                                                                                           |
+| `src/input/pointer.ts`                       | Pointer Events, wheel and space/middle-button drag → drawing, pan and zoom callbacks in screen pixels. Returns a detach function. |
+| `src/input/index.ts`                         | Barrel.                                                                                                                           |
+| `src/editor/Editor.ts`                       | The facade: owns canvas, camera, scene, history, atlas, tools, the rAF loop and the `useSyncExternalStore` contract.              |
+| `src/editor/index.ts`                        | Barrel.                                                                                                                           |
+| `src/hooks/useEditor.ts`                     | Creates one `Editor` per mount, StrictMode-safe, destroys it on unmount.                                                          |
+| `src/hooks/useEditorState.ts`                | `useSyncExternalStore` over an `Editor`.                                                                                          |
+| `src/components/App/App.tsx`                 | Rewritten against `Editor`; gains undo, redo and reset-view buttons.                                                              |
+| `src/components/Tool/Tool.tsx`               | Class-list construction fixed; gains `disabled`.                                                                                  |
+| `src/components/EmojiPicker/EmojiPicker.tsx` | `@ts-ignore` replaced by a typed custom element.                                                                                  |
+| `src/hooks/useEmojiPicker.ts`                | Listener removed on unmount; `console.log` deleted.                                                                               |
+| `src/types/emoji-picker.d.ts`                | The `emoji-picker` JSX declaration.                                                                                               |
 
 Deleted in the last task: `src/lib/EmojiCanvas.ts`, `src/lib/index.ts`,
 `src/hooks/useEmojiCanvas.ts`, `src/render/glyphAtlas.smoke.test.ts`.
@@ -199,11 +213,13 @@ Deleted in the last task: `src/lib/EmojiCanvas.ts`, `src/lib/index.ts`,
 ### Task 1: The theme and levels of detail
 
 **Files:**
+
 - Create: `src/render/theme.ts`
 - Create: `src/render/theme.test.ts`
 - Create: `src/render/index.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `Theme`, `DEFAULT_THEME`, `LevelOfDetail`, `levelOfDetail(theme, cellSizePx)`.
 
@@ -223,11 +239,15 @@ import { DEFAULT_THEME, levelOfDetail } from './theme'
 
 describe('levelOfDetail', () => {
   it('draws glyphs at the default base cell size', () => {
-    expect(levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.baseCellSize)).toBe('glyph')
+    expect(levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.baseCellSize)).toBe(
+      'glyph',
+    )
   })
 
   it('draws glyphs exactly at the colour threshold', () => {
-    expect(levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.colorLodThresholdPx)).toBe('glyph')
+    expect(
+      levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.colorLodThresholdPx),
+    ).toBe('glyph')
   })
 
   it('falls back to average colour just below the colour threshold', () => {
@@ -237,7 +257,9 @@ describe('levelOfDetail', () => {
   })
 
   it('draws blocks exactly at the block threshold', () => {
-    expect(levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.blockLodThresholdPx)).toBe('color')
+    expect(
+      levelOfDetail(DEFAULT_THEME, DEFAULT_THEME.blockLodThresholdPx),
+    ).toBe('color')
   })
 
   it('merges cells into blocks below the block threshold', () => {
@@ -354,20 +376,22 @@ git commit -m "feat: add the render theme and level-of-detail selection"
 ### Task 2: The glyph atlas
 
 **Files:**
+
 - Create: `src/render/glyphAtlas.ts`
 - Create: `src/render/glyphAtlas.test.ts`
 - Modify: `src/render/index.ts`
 - Delete: `src/render/glyphAtlas.smoke.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Emoji` from `src/core/types`, `Theme` from `./theme`.
 - Produces:
   ```ts
-  export const ATLAS_STEPS: readonly number[]           // [16, 32, 64, 128]
+  export const ATLAS_STEPS: readonly number[] // [16, 32, 64, 128]
   export function nearestAtlasStep(cellSizePx: number): number
   export class GlyphAtlas {
     constructor(dpr: number, fontStack: string)
-    averageColor(emoji: Emoji): string                       // 'rgb(r, g, b)'
+    averageColor(emoji: Emoji): string // 'rgb(r, g, b)'
     averageColorRgb(emoji: Emoji): readonly [number, number, number]
     clear(): void
     get(emoji: Emoji, cellSizePx: number): CanvasImageSource
@@ -778,11 +802,13 @@ git commit -m "feat: rasterise emoji into a glyph atlas centred by real metrics"
 ### Task 3: renderScene
 
 **Files:**
+
 - Create: `src/render/scene.ts`
 - Create: `src/render/scene.test.ts`
 - Modify: `src/render/index.ts`
 
 **Interfaces:**
+
 - Consumes: `Scene`, `Camera`, `cellSizeAt`, `visibleBounds`, `GlyphAtlas`, `Theme`,
   `levelOfDetail`.
 - Produces:
@@ -806,6 +832,7 @@ different context, not a second rendering path. `width` and `height` are **logic
 pixels; the caller has already applied the device pixel ratio to the context transform.
 
 Rules the implementation must hold to:
+
 - Only cells inside `visibleBounds` are touched. Frame cost follows window size, never
   drawing size.
 - `scene.bounds()` is never called.
@@ -891,7 +918,9 @@ describe('renderScene', () => {
     const size = DEFAULT_THEME.baseCellSize
     const centre = Math.round(size * 1.5)
 
-    expect(pixel(filled, centre, centre)).not.toEqual(pixel(blank, centre, centre))
+    expect(pixel(filled, centre, centre)).not.toEqual(
+      pixel(blank, centre, centre),
+    )
   })
 
   it('leaves no trace of an erased cell after a redraw', () => {
@@ -953,7 +982,8 @@ describe('renderScene', () => {
 
     scene.writeCell(0, 0, '❤️')
     // Rendered cell size lands under colorLodThresholdPx.
-    camera.zoom = (DEFAULT_THEME.colorLodThresholdPx - 2) / DEFAULT_THEME.baseCellSize
+    camera.zoom =
+      (DEFAULT_THEME.colorLodThresholdPx - 2) / DEFAULT_THEME.baseCellSize
 
     renderScene(ctx, scene, options({ camera }))
 
@@ -968,7 +998,8 @@ describe('renderScene', () => {
     const ctx = surface()
     const camera = createCamera()
 
-    camera.zoom = (DEFAULT_THEME.colorLodThresholdPx - 2) / DEFAULT_THEME.baseCellSize
+    camera.zoom =
+      (DEFAULT_THEME.colorLodThresholdPx - 2) / DEFAULT_THEME.baseCellSize
 
     renderScene(ctx, new Scene(), options({ camera }))
 
@@ -1008,9 +1039,13 @@ describe('renderScene', () => {
     const ctx = surface()
 
     ctx.imageSmoothingEnabled = true
-    renderScene(ctx, new Scene(), options({
-      theme: { ...DEFAULT_THEME, antialias: false },
-    }))
+    renderScene(
+      ctx,
+      new Scene(),
+      options({
+        theme: { ...DEFAULT_THEME, antialias: false },
+      }),
+    )
 
     expect(ctx.imageSmoothingEnabled).toBe(false)
   })
@@ -1232,11 +1267,13 @@ git commit -m "feat: render a scene frame confined to the visible bounds"
 ### Task 4: Pointer input — one pointer draws
 
 **Files:**
+
 - Create: `src/input/pointer.ts`
 - Create: `src/input/pointer.test.ts`
 - Create: `src/input/index.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from other tasks.
 - Produces:
   ```ts
@@ -1311,7 +1348,9 @@ describe('attachPointerInput', () => {
   it('starts a stroke on pointerdown, so a single tap draws', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 10, clientY: 20, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 10, clientY: 20, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawStart).toHaveBeenCalledTimes(1)
   })
@@ -1334,7 +1373,9 @@ describe('attachPointerInput', () => {
   it('captures the pointer so a stroke survives leaving the element', () => {
     const { el } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 1, clientY: 1, pointerId: 7 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 1, clientY: 1, pointerId: 7 }),
+    )
 
     expect(el.setPointerCapture).toHaveBeenCalledWith(7)
   })
@@ -1342,8 +1383,12 @@ describe('attachPointerInput', () => {
   it('reports movement while a stroke is in progress', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
-    el.dispatchEvent(pointer('pointermove', { clientX: 5, clientY: 5, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointermove', { clientX: 5, clientY: 5, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawMove).toHaveBeenCalledTimes(1)
   })
@@ -1351,7 +1396,9 @@ describe('attachPointerInput', () => {
   it('ignores movement with no stroke in progress', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointermove', { clientX: 5, clientY: 5, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointermove', { clientX: 5, clientY: 5, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawMove).not.toHaveBeenCalled()
     expect(handlers.onPan).not.toHaveBeenCalled()
@@ -1360,8 +1407,12 @@ describe('attachPointerInput', () => {
   it('ends the stroke on pointerup', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
-    el.dispatchEvent(pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawEnd).toHaveBeenCalledTimes(1)
   })
@@ -1369,8 +1420,12 @@ describe('attachPointerInput', () => {
   it('ends the stroke when the pointer is cancelled by the system', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
-    el.dispatchEvent(pointer('pointercancel', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointercancel', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawEnd).toHaveBeenCalledTimes(1)
   })
@@ -1378,9 +1433,15 @@ describe('attachPointerInput', () => {
   it('does not keep drawing after the stroke ended', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
-    el.dispatchEvent(pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }))
-    el.dispatchEvent(pointer('pointermove', { clientX: 9, clientY: 9, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointermove', { clientX: 9, clientY: 9, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawMove).not.toHaveBeenCalled()
   })
@@ -1395,7 +1456,9 @@ describe('attachPointerInput', () => {
     const { detach, el, handlers } = harness()
 
     detach()
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawStart).not.toHaveBeenCalled()
   })
@@ -1527,10 +1590,12 @@ git commit -m "feat: turn pointer events into drawing callbacks"
 ### Task 5: Pointer input — gestures, wheel and drag-to-pan
 
 **Files:**
+
 - Modify: `src/input/pointer.ts`
 - Modify: `src/input/pointer.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PointerHandlers`, `attachPointerInput` from task 4 — unchanged signature.
 - Produces: no new exports. The same `attachPointerInput` now also reports pan and zoom.
 
@@ -1563,7 +1628,9 @@ describe('attachPointerInput gestures', () => {
   it('cancels a stroke in progress when a second pointer arrives', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
     el.dispatchEvent(
       pointer('pointerdown', {
         clientX: 50,
@@ -1580,12 +1647,24 @@ describe('attachPointerInput gestures', () => {
   it('zooms in when two pointers move apart', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
     )
     el.dispatchEvent(
-      pointer('pointermove', { clientX: 200, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
+    )
+    el.dispatchEvent(
+      pointer('pointermove', {
+        clientX: 200,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
 
     expect(handlers.onZoom).toHaveBeenCalledTimes(1)
@@ -1595,12 +1674,24 @@ describe('attachPointerInput gestures', () => {
   it('zooms out when two pointers move together', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 200, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
     )
     el.dispatchEvent(
-      pointer('pointermove', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', {
+        clientX: 200,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
+    )
+    el.dispatchEvent(
+      pointer('pointermove', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
 
     expect(handlers.onZoom.mock.calls[0][0]).toBeLessThan(1)
@@ -1609,14 +1700,28 @@ describe('attachPointerInput gestures', () => {
   it('pans by the displacement of the midpoint between two pointers', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointerdown', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
     // Both fingers slide 10px right: distance unchanged, midpoint moves 10.
-    el.dispatchEvent(pointer('pointermove', { clientX: 10, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointermove', { clientX: 110, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointermove', { clientX: 10, clientY: 0, pointerId: 1 }),
+    )
+    el.dispatchEvent(
+      pointer('pointermove', {
+        clientX: 110,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
 
     const panX = handlers.onPan.mock.calls.reduce((sum, [dx]) => sum + dx, 0)
@@ -1627,13 +1732,22 @@ describe('attachPointerInput gestures', () => {
   it('does not draw while two pointers are down', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
     handlers.onDrawMove.mockClear()
 
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
-    el.dispatchEvent(pointer('pointermove', { clientX: 40, clientY: 40, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointermove', { clientX: 40, clientY: 40, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawMove).not.toHaveBeenCalled()
   })
@@ -1641,17 +1755,31 @@ describe('attachPointerInput gestures', () => {
   it('does not resume drawing when one finger of a pinch lifts', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
     )
     el.dispatchEvent(
-      pointer('pointerup', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
+    )
+    el.dispatchEvent(
+      pointer('pointerup', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
     handlers.onDrawStart.mockClear()
     handlers.onDrawMove.mockClear()
 
-    el.dispatchEvent(pointer('pointermove', { clientX: 60, clientY: 60, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointermove', { clientX: 60, clientY: 60, pointerId: 1 }),
+    )
 
     expect(handlers.onDrawMove).not.toHaveBeenCalled()
     expect(handlers.onDrawStart).not.toHaveBeenCalled()
@@ -1660,17 +1788,33 @@ describe('attachPointerInput gestures', () => {
   it('draws again once every pointer has lifted', () => {
     const { el, handlers } = harness()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
     el.dispatchEvent(
-      pointer('pointerdown', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }),
     )
     el.dispatchEvent(
-      pointer('pointerup', { clientX: 100, clientY: 0, isPrimary: false, pointerId: 2 }),
+      pointer('pointerdown', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
     )
-    el.dispatchEvent(pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }))
+    el.dispatchEvent(
+      pointer('pointerup', {
+        clientX: 100,
+        clientY: 0,
+        isPrimary: false,
+        pointerId: 2,
+      }),
+    )
+    el.dispatchEvent(
+      pointer('pointerup', { clientX: 0, clientY: 0, pointerId: 1 }),
+    )
     handlers.onDrawStart.mockClear()
 
-    el.dispatchEvent(pointer('pointerdown', { clientX: 5, clientY: 5, pointerId: 3 }))
+    el.dispatchEvent(
+      pointer('pointerdown', { clientX: 5, clientY: 5, pointerId: 3 }),
+    )
 
     expect(handlers.onDrawStart).toHaveBeenCalledTimes(1)
   })
@@ -1960,11 +2104,13 @@ git commit -m "feat: separate one-pointer drawing from two-pointer navigation"
 ### Task 6: The Editor facade
 
 **Files:**
+
 - Create: `src/editor/Editor.ts`
 - Create: `src/editor/Editor.test.ts`
 - Create: `src/editor/index.ts`
 
 **Interfaces:**
+
 - Consumes: everything above, plus `Scene`, `History`, `StrokeRecorder`,
   `createClearOperation`, `applyOperation`, `invertOperation`, `screenToCell`, `zoomAt`,
   `clampZoom`, `createCamera`, `toText`, `createBrushTool`, `createEraserTool`.
@@ -2685,6 +2831,7 @@ git commit -m "feat: add the Editor facade over scene, history, render and input
 ### Task 7: Port the React shell
 
 **Files:**
+
 - Create: `src/hooks/useEditor.ts`
 - Create: `src/hooks/useEditorState.ts`
 - Create: `src/types/emoji-picker.d.ts`
@@ -2696,6 +2843,7 @@ git commit -m "feat: add the Editor facade over scene, history, render and input
 - Modify: `src/hooks/index.ts`
 
 **Interfaces:**
+
 - Consumes: `Editor`, `EditorState` from `src/editor`.
 - Produces: `useEditor(ref)`, `useEditorState(editor)`.
 
@@ -2731,15 +2879,21 @@ describe('App', () => {
   it('renders a canvas', async () => {
     const screen = render(<App />)
 
-    await expect.element(screen.getByRole('button', { name: 'Clear' })).toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Clear' }))
+      .toBeVisible()
     expect(document.querySelectorAll('canvas')).toHaveLength(1)
   })
 
   it('disables undo and redo until something is drawn', async () => {
     const screen = render(<App />)
 
-    await expect.element(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
-    await expect.element(screen.getByRole('button', { name: 'Redo' })).toBeDisabled()
+    await expect
+      .element(screen.getByRole('button', { name: 'Undo' }))
+      .toBeDisabled()
+    await expect
+      .element(screen.getByRole('button', { name: 'Redo' }))
+      .toBeDisabled()
   })
 
   it('never puts the string false into a class list', async () => {
@@ -2934,7 +3088,11 @@ export function Tool({
   ]
 
   return (
-    <button className={classes.filter(Boolean).join(' ')} onClick={onClick} {...rest}>
+    <button
+      className={classes.filter(Boolean).join(' ')}
+      onClick={onClick}
+      {...rest}
+    >
       {children}
     </button>
   )
@@ -3066,6 +3224,7 @@ npx vitest run --project browser src/components/App/App.test.tsx
 npm test
 npm run build
 ```
+
 Expected: all PASS, build clean.
 
 - [ ] **Step 10: Look at it in a browser**
@@ -3095,6 +3254,7 @@ git commit -m "feat: port the React shell onto the Editor facade"
 ### Task 8: Remove the old engine
 
 **Files:**
+
 - Delete: `src/lib/EmojiCanvas.ts`, `src/lib/index.ts`, `src/hooks/useEmojiCanvas.ts`
 - Modify: `CLAUDE.md`, `README.md`, `docs/superpowers/PROGRESS.md`
 
@@ -3106,6 +3266,7 @@ stops being two engines.
 ```bash
 grep -rn "EmojiCanvas\|useEmojiCanvas" src/
 ```
+
 Expected: no matches. Anything that turns up must be fixed before deleting.
 
 - [ ] **Step 2: Delete**
@@ -3121,6 +3282,7 @@ npm run lint
 npm test
 npm run build
 ```
+
 Expected: all clean. The build must still emit `base: '/emojicanvas/'`; do not touch
 `vite.config.ts`.
 

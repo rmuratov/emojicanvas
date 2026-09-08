@@ -111,7 +111,10 @@ export class Scene {
   }
 
   toJSON(): SceneData {
-    return { cells: Object.fromEntries(this.cells), version: SCENE_DATA_VERSION }
+    return {
+      cells: Object.fromEntries(this.cells),
+      version: SCENE_DATA_VERSION,
+    }
   }
 
   /**

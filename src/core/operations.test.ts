@@ -195,9 +195,7 @@ describe('StrokeRecorder', () => {
     const committed = recorder.commit('draw')
 
     expect(committed).not.toBeNull()
-    expect(committed!.op.changes).toEqual([
-      { value: 'a-changed', x: 0, y: 0 },
-    ])
+    expect(committed!.op.changes).toEqual([{ value: 'a-changed', x: 0, y: 0 }])
     expect(committed!.inverse.changes).toEqual([
       { value: 'a-original', x: 0, y: 0 },
     ])

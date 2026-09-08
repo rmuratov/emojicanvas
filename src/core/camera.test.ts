@@ -184,13 +184,17 @@ describe('zoomAt', () => {
     const anchorPx = 200
     const anchorPy = 150
 
-    const worldXBefore = (anchorPx + camera.offsetX) / cellSizeAt(30, camera.zoom)
-    const worldYBefore = (anchorPy + camera.offsetY) / cellSizeAt(30, camera.zoom)
+    const worldXBefore =
+      (anchorPx + camera.offsetX) / cellSizeAt(30, camera.zoom)
+    const worldYBefore =
+      (anchorPy + camera.offsetY) / cellSizeAt(30, camera.zoom)
 
     const zoomed = zoomAt(camera, 2, anchorPx, anchorPy)
 
-    const worldXAfter = (anchorPx + zoomed.offsetX) / cellSizeAt(30, zoomed.zoom)
-    const worldYAfter = (anchorPy + zoomed.offsetY) / cellSizeAt(30, zoomed.zoom)
+    const worldXAfter =
+      (anchorPx + zoomed.offsetX) / cellSizeAt(30, zoomed.zoom)
+    const worldYAfter =
+      (anchorPy + zoomed.offsetY) / cellSizeAt(30, zoomed.zoom)
 
     expect(worldXAfter).toBeCloseTo(worldXBefore, 10)
     expect(worldYAfter).toBeCloseTo(worldYBefore, 10)
