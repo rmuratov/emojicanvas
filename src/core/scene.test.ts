@@ -129,6 +129,23 @@ describe('Scene', () => {
     expect(restored.get(2, 3)).toBe('d')
   })
 
+  it('skips a valid key paired with an invalid value, keeping valid neighbours', () => {
+    const restored = Scene.fromJSON({
+      cells: {
+        '1,2': 'a',
+        '3,4': 123,
+        '5,6': '',
+        '7,8': 'd',
+      },
+    } as unknown as SceneData)
+
+    expect(restored.size).toBe(2)
+    expect(restored.get(1, 2)).toBe('a')
+    expect(restored.get(7, 8)).toBe('d')
+    expect(restored.has(3, 4)).toBe(false)
+    expect(restored.has(5, 6)).toBe(false)
+  })
+
   it('normalises a key with surrounding whitespace to its canonical form', () => {
     const restored = Scene.fromJSON({
       cells: {
