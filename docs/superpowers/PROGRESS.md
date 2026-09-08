@@ -3,12 +3,12 @@
 Cross-session status log. Read together with the spec
 `specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Updated: 2026-09-08.
+Updated: 2026-09-08. Plans 1-3 done; plan 4 is the only work left.
 
 ## Where we are
 
-All work happens on a single branch, **`foundation`** (44 commits), to be merged into
-`main` locally once all three plans are done. Nothing is pushed. `main` sits at
+All work happens on a single branch, **`foundation`** (63 commits), to be merged into
+`main` locally once all four plans are done. Nothing is pushed. `main` sits at
 `a11e969` and matches `origin/main` exactly.
 
 | Plan                                                                                          | Status                                                   |
@@ -220,15 +220,18 @@ are recorded because breaking one is easy and the breakage is quiet.
 Plans 1 to 3 are done and the app runs on the new engine. What remains before `foundation`
 merges into `main`:
 
-0. **Decide the two items above** — the Tool border token, and whether Prettier becomes
-   enforced.
+**Plan 4 is the only outstanding work.** Every deferred finding from plans 1 and 2 is
+closed, and formatting is now enforced by a lefthook pre-commit hook and by CI.
+
 1. **Plan 4 — performance**, the spec's step 7. Write it from the spec's "Performance"
    section: Vitest benchmarks in the browser project for frame time at 1x zoom and at
    minimum zoom and for a full-screen stroke, then measurement on a real mobile device,
    then tune the level-of-detail thresholds. **The 12px and 4px thresholds are still their
    starting values — nothing has measured them.** A benchmark regression is a reason to
    investigate, not to raise the threshold.
-2. ~~Clear plan 1's deferred findings.~~ Done, except the Tool border token.
+2. ~~Clear plan 1's deferred findings.~~ **All closed**, including the Tool border
+   colour, which is closed by decision: the buttons are being redesigned and a token
+   source for the React shell belongs to that redesign.
 3. ~~Finding 3 from plan 2 — the reverse-direction line test.~~ **Closed** (`a561e65`).
    Brute force over every integer pair in [-5,5]² confirmed the finding exactly: 31.5% of
    pairs violate the symmetry, and the named counterexample `(-5,-5)→(-4,-3)` is real —
@@ -236,3 +239,19 @@ merges into `main`:
    _does_ hold universally (endpoints, length, connectivity, all verified by brute force
    over the same range) and pins the asymmetry with that counterexample so nobody
    "fixes" it by accident.
+
+## Starting the next session
+
+Read this file and the spec, then write plan 4 from the spec's "Performance" section with
+the `superpowers:writing-plans` skill. Two things that will not be obvious from the code:
+
+- **No threshold in `render/theme.ts` has ever been measured.** `colorLodThresholdPx` (12)
+  and `blockLodThresholdPx` (4) are the spec's starting guesses. Plan 4 exists to replace
+  them with numbers from real hardware.
+- **Benchmarks belong to the `browser` project.** `vitest.config.ts` routes
+  `src/{core,tools}/**/*.test.ts` to `node` and everything else to `browser`; a path
+  matching both runs twice.
+
+The invariants listed above are the things easiest to break while chasing frame time.
+`getSnapshot` returning a cached object and `isEmpty` reading `scene.size` are the two
+that will look like harmless micro-optimisations and are not.
