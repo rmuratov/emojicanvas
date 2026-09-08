@@ -14,6 +14,10 @@ export function createBrushTool(): Tool {
   return {
     id: 'brush',
 
+    onCancel() {
+      last = null
+    },
+
     onDown(cell, ctx) {
       last = cell
       ctx.recorder.record(ctx.scene, cell.x, cell.y, ctx.brush)

@@ -64,6 +64,27 @@ describe('createBrushTool', () => {
     expect(ctx.scene.get(0, 0)).toBe('🔥')
   })
 
+  it('does not connect a stroke to a cancelled one after rollback', () => {
+    const tool = createBrushTool()
+    const ctx = context()
+
+    tool.onDown({ x: 0, y: 0 }, ctx)
+    tool.onMove({ x: 2, y: 0 }, ctx)
+    ctx.recorder.rollback(ctx.scene)
+    tool.onCancel(ctx)
+
+    tool.onDown({ x: 10, y: 10 }, ctx)
+    tool.onMove({ x: 12, y: 10 }, ctx)
+
+    expect(ctx.scene.size).toBe(3)
+    expect(ctx.scene.has(0, 0)).toBe(false)
+    expect(ctx.scene.has(1, 0)).toBe(false)
+    expect(ctx.scene.has(2, 0)).toBe(false)
+    expect(ctx.scene.get(10, 10)).toBe('❤️')
+    expect(ctx.scene.get(11, 10)).toBe('❤️')
+    expect(ctx.scene.get(12, 10)).toBe('❤️')
+  })
+
   it('leaves one committable operation for the whole stroke', () => {
     const tool = createBrushTool()
     const ctx = context()

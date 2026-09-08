@@ -14,6 +14,10 @@ export function createEraserTool(): Tool {
   return {
     id: 'eraser',
 
+    onCancel() {
+      last = null
+    },
+
     onDown(cell, ctx) {
       last = cell
       ctx.recorder.record(ctx.scene, cell.x, cell.y, undefined)
