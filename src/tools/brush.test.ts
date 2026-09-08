@@ -85,6 +85,20 @@ describe('createBrushTool', () => {
     expect(ctx.scene.get(12, 10)).toBe('❤️')
   })
 
+  it('ignores movement after a cancelled stroke until the next onDown', () => {
+    const tool = createBrushTool()
+    const ctx = context()
+
+    tool.onDown({ x: 0, y: 0 }, ctx)
+    tool.onMove({ x: 2, y: 0 }, ctx)
+    ctx.recorder.rollback(ctx.scene)
+    tool.onCancel(ctx)
+
+    tool.onMove({ x: 12, y: 10 }, ctx)
+
+    expect(ctx.scene.size).toBe(0)
+  })
+
   it('leaves one committable operation for the whole stroke', () => {
     const tool = createBrushTool()
     const ctx = context()

@@ -73,6 +73,24 @@ describe('createEraserTool', () => {
     expect(ctx.scene.size).toBe(4)
   })
 
+  it('ignores movement after a cancelled stroke until the next onDown', () => {
+    const tool = createEraserTool()
+    const ctx = context()
+
+    for (let x = 0; x <= 12; x++) {
+      ctx.scene.writeCell(x, 0, '❤️')
+    }
+
+    tool.onDown({ x: 0, y: 0 }, ctx)
+    tool.onMove({ x: 2, y: 0 }, ctx)
+    ctx.recorder.rollback(ctx.scene)
+    tool.onCancel(ctx)
+
+    tool.onMove({ x: 12, y: 0 }, ctx)
+
+    expect(ctx.scene.size).toBe(13)
+  })
+
   it('does not connect a stroke to a cancelled one after rollback', () => {
     const tool = createEraserTool()
     const ctx = context()
