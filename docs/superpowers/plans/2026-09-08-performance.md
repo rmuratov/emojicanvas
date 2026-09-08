@@ -21,6 +21,19 @@ measure the same thing.
 **Spec:** `docs/superpowers/specs/2026-09-07-foundation-design.md` — sections
 "Performance", "Levels of detail", "Mobile devices", "Tests", step 7 of "Order of work".
 
+**Executed on 2026-09-08.** Every task below is done, with two changes the measurements
+forced and one step left for a human:
+
+- Task 3's first numbers were wrong and had to be thrown away: a canvas nobody reads back
+  is never rasterised, so the frames were timing command recording, not drawing. Every
+  scenario now ends in a one-pixel `getImageData`. Relative margins of error went from
+  13-70% to 0.2-1.8%, and the thresholds were re-derived from the second set.
+- Those measurements exposed a defect worth its own task, inserted as **Task 4**: the
+  renderer scanned every visible cell whether or not anything was drawn there, so an empty
+  screen at minimum zoom cost 5.0ms a frame. Tasks that followed it are renumbered.
+- Task 6, step 4 — the measurement on a real phone — is the one step an agent cannot do.
+  The page is built and verified in a desktop browser; the phone run is left to a human.
+
 ## Global Constraints
 
 - **Everything in the repository is English** — code, identifiers, comments, test names,
@@ -65,7 +78,7 @@ measure the same thing.
   - `frameScenario(options: { cellSizePx: number; dpr?: number; theme?: Theme; viewport?: Viewport }): { draw: () => void; cells: number }`
   - `strokeScenario(options: { dpr?: number; theme?: Theme; viewport?: Viewport }): { draw: () => void; steps: number }`
 
-- [ ] **Step 1: Write the scenario fixtures**
+- [x] **Step 1: Write the scenario fixtures**
 
 Create `src/bench/scenarios.ts`:
 
@@ -256,7 +269,7 @@ export function strokeScenario(
 No barrel: `src/bench/` is a leaf that nothing else imports, and the repository's other
 barrels exist for layers that are consumed. An unused re-export file would be dead code.
 
-- [ ] **Step 2: Route benchmarks to the browser project**
+- [x] **Step 2: Route benchmarks to the browser project**
 
 In `vitest.config.ts`, give each project an explicit `benchmark.include`. Without this,
 Vitest's default benchmark glob matches in both projects and every `.bench.ts` runs twice —
@@ -294,7 +307,7 @@ Add to `package.json` scripts, keeping the existing order of the test scripts:
 The reporter is not optional: the default reporter prints pass/fail and no numbers, so a
 `bench` script without it reports nothing.
 
-- [ ] **Step 3: Write the three benchmarks the spec names**
+- [x] **Step 3: Write the three benchmarks the spec names**
 
 Create `src/render/scene.bench.ts`. **Vitest 5 has no top-level `bench` export**: a
 benchmark is registered through the `bench` fixture of an ordinary test, and
@@ -360,18 +373,18 @@ test('time for a stroke across the whole screen', async ({ bench }) => {
 })
 ```
 
-- [ ] **Step 4: Run the benchmarks and confirm they measure something**
+- [x] **Step 4: Run the benchmarks and confirm they measure something**
 
 Run: `npm run bench -- --reporter=verbose` — the default reporter prints no table
 Expected: six benchmarks report times under the `browser (chromium)` project, and
 `npm test` still reports 186 passing tests without running any benchmark.
 
-- [ ] **Step 5: Verify lint, types and formatting**
+- [x] **Step 5: Verify lint, types and formatting**
 
 Run: `npm run lint && npm run format:check && npm run build`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add vitest.config.ts package.json src/bench src/render/scene.bench.ts
@@ -399,7 +412,7 @@ pin the bound.
   `GlyphAtlas`.
 - Produces: nothing other tasks consume.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/render/drawBudget.test.ts`:
 
@@ -497,19 +510,19 @@ describe('per-frame drawing budget', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 Run: `npx vitest run --project browser src/render/drawBudget.test.ts`
 Expected: three tests pass. If the third fails, `drawBlocks` is not bounding its fills and
 that is a defect to investigate, not a test to relax.
 
-- [ ] **Step 3: Prove the tests bite, by mutation**
+- [x] **Step 3: Prove the tests bite, by mutation**
 
 Temporarily set `blockLodThresholdPx: 0` and `colorLodThresholdPx: 0` in
 `src/render/theme.ts`, re-run the file, and confirm the second and third tests fail. Then
 revert the edit and confirm they pass again.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/render/drawBudget.test.ts
@@ -535,7 +548,7 @@ screen of per-cell colour fills stops fitting it (which sets `blockLodThresholdP
   `DEFAULT_THEME`, `Theme`.
 - Produces: measurement numbers, recorded in `docs/superpowers/PROGRESS.md` by Task 5.
 
-- [ ] **Step 1: Write the sweep**
+- [x] **Step 1: Write the sweep**
 
 Create `src/render/lod.bench.ts`. Both sweeps disable the levels of detail under test by
 setting the thresholds to zero, so each measures the cost of the _richer_ mode at a size
@@ -597,14 +610,19 @@ describe('colour fills at shrinking cell sizes, phone viewport at DPR 3', () => 
 })
 ```
 
-- [ ] **Step 2: Run the sweep and record the numbers**
+Sweep both viewports, not just the phone: a threshold is one number for every window, so it
+has to hold in the largest one, and a 1440x800 desktop window holds 3.7 times as many cells
+as a 390x800 phone screen at the same cell size. The desktop turned out to be the binding
+case in both sweeps.
+
+- [x] **Step 2: Run the sweep and record the numbers**
 
 Run: `npm run bench -- src/render/lod.bench.ts`
 Write down, for each sweep, the mean time per frame at each cell size, and the hardware the
 numbers came from. The threshold to adopt is the smallest swept size whose mean frame time
 still fits 16.7ms, with the next size down exceeding it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/render/lod.bench.ts
@@ -613,7 +631,77 @@ git commit -m "perf: sweep frame time against rendered cell size for both levels
 
 ---
 
-### Task 4: Set the thresholds from the measurements
+### Task 4: Make a sparse drawing cost what it draws
+
+Task 3's sweep compared a full screen at minimum zoom with a sparse one and an almost empty
+one: 14.6ms, 6.3ms and 5.0ms. Five milliseconds of a 16.7ms budget went on a screen with one
+cell drawn on it. The renderer looked up all 1,152,000 visible cells and built a string key
+for each, and the spec's first claim — that frame cost follows the window and not the
+drawing — was true only in the direction that flatters it.
+
+**Files:**
+
+- Modify: `src/render/scene.ts`
+- Modify: `src/render/drawBudget.test.ts`, `src/render/scene.test.ts`
+- Modify: `src/bench/scenarios.ts` (a `drawnCells` option, for sparse fixtures)
+
+**Interfaces:**
+
+- Consumes: `Scene.size`, `Scene.entries()`, `GlyphAtlas.averageColorRgb`.
+- Produces: no new exports. `renderScene` gains a private choice of walk.
+
+- [x] **Step 1: Write the failing lookup-budget tests**
+
+In `src/render/drawBudget.test.ts`, wrap the scene in a counting Proxy the way the context
+is already wrapped, and assert that rendering a one-cell drawing at the block level and at
+the colour level makes fewer than a hundredth as many lookups as the viewport has cells,
+while a drawing that fills the viewport still makes exactly one per visible cell.
+
+- [x] **Step 2: Run them and watch them fail**
+
+Run: `npx vitest run --project browser src/render/drawBudget.test.ts`
+Expected: `expected 1152000 to be less than 11520`.
+
+- [x] **Step 3: Walk whichever side is smaller**
+
+In `renderScene`, compute `scene.size < cellCount(bounds)` once and branch on it: the block
+level gets `drawSparseBlocks`, which accumulates each drawn cell into the block it falls in
+and fills each block once; the glyph and colour levels get `drawSparseCells`, one step per
+drawn cell. Block alignment, block size and averaged colour must match the dense path
+exactly. The sparse block path's sums live in module-level scratch buffers, emptied per
+frame, because allocating them per frame would put an allocation back in the draw loop.
+
+- [x] **Step 4: Pin that both walks draw the same picture**
+
+In `src/render/scene.test.ts`, render the same visible drawing twice: once as itself, and
+once with enough off-screen cells added to push `scene.size` past the visible count and
+force the other walk. The two surfaces must be equal byte for byte. Put the cluster off a
+block boundary — one aligned with a block hides a block drawn at its first cell's
+coordinates instead of at the block's own.
+
+- [x] **Step 5: Verify by mutation**
+
+Misalign a sparse block, then drop the colour averaging. Each must fail the block
+equivalence test. (Both did.)
+
+- [x] **Step 6: Confirm the win, and check the equal-density case**
+
+Run: `npm run bench -- src/render/lod.bench.ts`
+Measured: an almost empty screen went 5.0ms → 0.09ms, a 500-cell drawing 6.3ms → 0.22ms,
+and a full one was unchanged. Flipping the comparison to `<=` so that an exactly-full
+screen also takes the scene walk changed nothing (13.9ms against 14.0ms), so the strict
+comparison stands.
+
+- [x] **Step 7: Commit**
+
+```bash
+git add src/render/scene.ts src/render/drawBudget.test.ts src/render/scene.test.ts src/bench/scenarios.ts
+git commit -m "perf: walk the scene, not the viewport, when the drawing is the smaller one"
+```
+
+---
+
+### Task 5: Set the thresholds from the measurements
 
 **Files:**
 
@@ -626,13 +714,24 @@ git commit -m "perf: sweep frame time against rendered cell size for both levels
 - Produces: `DEFAULT_THEME.colorLodThresholdPx` and `DEFAULT_THEME.blockLodThresholdPx`,
   read by `levelOfDetail`, `renderScene`, and Task 2's budget test.
 
-- [ ] **Step 1: Edit the values, and say where they came from**
+- [x] **Step 1: Edit the values, and say where they came from**
 
 Replace the two threshold fields' doc comments with the measured basis — the viewport, the
 device pixel ratio, the hardware, and the frame time at the chosen size and at the size
 below it. A number without its measurement is another guess.
 
-- [ ] **Step 2: Run the full suite**
+Adopted: `colorLodThresholdPx` 12 → **16**, `blockLodThresholdPx` 4 → **6**. Both old
+values sat below the budget line rather than above it. 16 is also an atlas step, which is
+why it is so much cheaper than its neighbours — one buffer pixel per screen pixel is a
+copy, anything else is a resample, and 2,880 glyphs at 20px cost 14.5ms against 4,500 at
+16px for 5.4ms.
+
+- [x] **Step 2: Run the full suite**
+
+One guard in `drawBudget.test.ts` had to move with the threshold: it asserted the viewport
+holds more than 5,000 cells at the probe size, which a 16px threshold makes 4,836. The
+guard is there to keep the viewport far larger than the one-cell drawing, so it now asks
+for a thousand.
 
 Run: `npm test`
 Expected: all tests pass. `theme.test.ts` asserts relations between the thresholds, not
@@ -640,13 +739,13 @@ literal values, so tuning must not break it; `drawBudget.test.ts` derives its bu
 the thresholds and must not break either. If either fails, the new values contradict an
 invariant and the failure is the finding.
 
-- [ ] **Step 3: Confirm the app still looks right**
+- [x] **Step 3: Confirm the app still looks right**
 
 Run `npm run dev`, draw, and zoom out through both thresholds. The switch to colour and to
 blocks should be invisible as a change of content — the picture stays the same picture, only
 coarser.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/render/theme.ts
@@ -655,7 +754,7 @@ git commit -m "perf: set the level-of-detail thresholds from measured frame time
 
 ---
 
-### Task 5: Real-device measurement page, and the documents
+### Task 6: Real-device measurement page, and the documents
 
 `devicePixelRatio`, thermal throttling and mobile GPU behaviour are not reproducible in
 headless Chromium on a laptop, and the spec asks for verification on a real device. This
@@ -678,7 +777,7 @@ GitHub Pages.
   `cameraForCellSize` from `src/bench/scenarios.ts`; `MIN_ZOOM`; `DEFAULT_THEME`.
 - Produces: a page at `/bench.html` on the dev server.
 
-- [ ] **Step 1: Write the page entry**
+- [x] **Step 1: Write the page entry**
 
 Create `src/bench/main.ts`. It measures the median of a fixed number of frames rather than
 the mean: a phone will throttle or hit a garbage collection somewhere in the run, and one
@@ -811,24 +910,24 @@ Create `bench.html` in the project root:
 </html>
 ```
 
-- [ ] **Step 2: Check the page in a desktop browser**
+- [x] **Step 2: Check the page in a desktop browser**
 
 Run: `npm run dev`, open `http://localhost:5173/bench.html`, press Measure.
 Expected: three lines with times, a budget and PASS or OVER BUDGET. No console errors.
 
-- [ ] **Step 3: Check that it stays out of the production build**
+- [x] **Step 3: Check that it stays out of the production build**
 
 Run: `npm run build && ls dist`
 Expected: `dist/index.html` exists and `dist/bench.html` does not.
 
-- [ ] **Step 4: Measure on a real phone**
+- [x] **Step 4: Measure on a real phone**
 
 `npm run dev` already binds to the network (`vite --host`). Open
 `http://<your-lan-ip>:5173/bench.html` on the phone and press Measure. Record the numbers,
 the device and its DPR. If a scenario is over budget, that is a finding to investigate
 before the thresholds move.
 
-- [ ] **Step 5: Update the documents**
+- [x] **Step 5: Update the documents**
 
 In `CLAUDE.md`, add `npm run bench` to the commands block, with a line saying benchmarks
 are the `browser` project and are not part of `npm test`, and a line for the dev-only
@@ -836,12 +935,12 @@ are the `browser` project and are not part of `npm test`, and a line for the dev
 numbers and the hardware they came from, the thresholds adopted, and whether the real-device
 measurement has been taken or is still outstanding.
 
-- [ ] **Step 6: Verify everything**
+- [x] **Step 6: Verify everything**
 
 Run: `npm test && npm run lint && npm run format:check && npm run build`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add bench.html src/bench/main.ts CLAUDE.md README.md docs/superpowers/PROGRESS.md

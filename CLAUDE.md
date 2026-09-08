@@ -20,8 +20,14 @@ npm run lint:fix # eslint src --fix
 npm run format       # prettier --write .
 npm run format:check # prettier --check . (what CI runs)
 npm test         # vitest run: a `node` project (pure logic in src/core, src/tools) and a `browser` project (Playwright + Chromium)
+npm run bench    # vitest bench --reporter=verbose: `*.bench.ts` in the browser project, never part of `npm test` or CI
 npm run preview  # serve the production build
 ```
+
+`npm run dev` also serves a dev-only measurement page at
+`http://localhost:5173/emojicanvas/bench.html` (and at the printed network address, for a
+real phone) that runs the same scenarios as the benchmarks in whatever browser opens it.
+It is not listed in `build.rollupOptions.input`, so it never reaches `dist/`.
 
 Run `npm test`, `npm run lint` and `npm run build` before claiming a change works.
 
@@ -80,12 +86,20 @@ and that destroys the art on paste. Consequently **the eraser is a real tool tha
 cells**, not "a brush painting the filler", and there is no erasing mode anywhere in the
 model.
 
-**Frame cost follows window size, not drawing size.** The canvas is created at the size of
-its container, which removes the browser's canvas-area limit and means a scene with a
-million cells renders in the same time as one with a hundred. Only cells inside
-`camera.visibleBounds` are drawn. `scene.bounds()` is an O(n) scan of every drawn cell —
-it is for text export, never for a frame, and never for `getSnapshot`, which uses
-`scene.size === 0` because `useSyncExternalStore` calls it on every render.
+**Frame cost follows the smaller of the window and the drawing.** The canvas is created at
+the size of its container, which removes the browser's canvas-area limit and means a scene
+with a million cells renders in the same time as one with a hundred. Only cells inside
+`camera.visibleBounds` are drawn, and the renderer walks whichever side is smaller: the
+viewport when the drawing is bigger than it, the scene's own cells when it is not. Scanning
+the viewport costs a lookup — and the string key it builds — per visible cell, which at
+minimum zoom was 1.15 million of them for a drawing of ten, and 5ms a frame of nothing.
+The level-of-detail thresholds in `render/theme.ts` are measured, not guessed; the numbers
+and the hardware are recorded beside them, and `src/render/lod.bench.ts` is what produced
+them.
+
+`scene.bounds()` is an O(n) scan of every drawn cell — it is for text export, never for a
+frame, and never for `getSnapshot`, which uses `scene.size === 0` because
+`useSyncExternalStore` calls it on every render.
 
 Glyphs are centred on their own measured bounding box, so emoji with a variation selector
 (`❤️` = U+2764 U+FE0F) and native ones (`😀` = U+1F600) line up. The old hard-coded

@@ -40,17 +40,22 @@ export type Theme = {
  * MacBook in headless Chromium against the worst case a frame can be asked
  * for: a 1440x800 viewport at device pixel ratio 2 with every visible cell
  * drawn. A desktop window is the binding case, not a phone — at the same
- * cell size it holds 3.7 times as many cells as a 390x800 screen — and the
- * budget is 16.7ms.
+ * cell size it holds 3.7 times as many cells as a 390x800 screen, and every
+ * scenario below fits the 16.7ms budget comfortably there. Each figure is a
+ * whole frame including the background fill, measured with the rasteriser
+ * forced to catch up, and the budget is 16.7ms.
  *
  * Glyphs, with the level of detail disabled: 16px cells (4,500 glyphs) took
- * 5.0ms, 14px (5,974) took 11.2ms with frames as long as 19.2ms, and 12px
- * (8,040) took 17.1ms. 16 is the smallest size that holds the budget with
- * margin, so glyphs give way to colour below it.
+ * 5.4ms, 14px (5,974) took 16.0ms, 12px (8,040) took 18.4ms and 10px
+ * (11,520) took 21.9ms. Below 16px a full screen no longer fits, so glyphs
+ * give way to colour there. 16 is also an atlas step, which is why it is so
+ * much cheaper than its neighbours: at exactly one buffer pixel per screen
+ * pixel the browser copies instead of resampling, and 20px cells cost 14.5ms
+ * for barely half as many glyphs.
  *
  * Colour fills, with the block level disabled: 8px cells (18,000 fills) took
- * 4.2ms, 6px (32,160) took 10.6ms, 5px (46,080) took 16.1ms and 4px (72,000)
- * took 25.1ms. 6 is the smallest size that still fits, so cells merge into
+ * 7.2ms, 6px (32,160) took 12.4ms, 5px (46,080) took 17.0ms and 4px (72,000)
+ * took 27.1ms. 6 is the smallest size that still fits, so cells merge into
  * blocks below it.
  *
  * These are worst-case numbers: a screen where every visible cell is drawn.

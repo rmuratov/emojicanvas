@@ -128,7 +128,7 @@ export function frameScenario(options: {
   const scene = filledViewport(camera, theme, viewport, options.drawnCells)
   const ctx = createSurface(viewport, dpr)
   const atlas = new GlyphAtlas(dpr, theme.fontStack)
-  const draw = () =>
+  const draw = () => {
     renderScene(ctx, scene, {
       atlas,
       camera,
@@ -136,6 +136,8 @@ export function frameScenario(options: {
       theme,
       width: viewport.width,
     })
+    flush(ctx)
+  }
 
   draw()
 
@@ -188,9 +190,21 @@ export function strokeScenario(
 
     tool.onUp(toolCtx)
     recorder.commit('bench')
+    flush(ctx)
   }
 
   draw()
 
   return { draw, steps }
+}
+
+/**
+ * Forces the rasteriser to catch up with the drawing commands just issued.
+ * Canvas 2D calls only queue work; without reading a pixel back, a timed
+ * frame measures how fast the commands were recorded and not how long the
+ * frame took, which flatters every scenario and flatters the expensive ones
+ * most. One pixel is enough to make the read synchronous.
+ */
+function flush(ctx: CanvasRenderingContext2D): void {
+  ctx.getImageData(0, 0, 1, 1)
 }

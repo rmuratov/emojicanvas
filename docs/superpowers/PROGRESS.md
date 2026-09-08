@@ -3,7 +3,8 @@
 Cross-session status log. Read together with the spec
 `specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Updated: 2026-09-08. Plans 1-3 done; plan 4 is the only work left.
+Updated: 2026-09-08. All four plans are done. What is left is a measurement on a real
+phone and the merge into `main`.
 
 ## Where we are
 
@@ -16,12 +17,13 @@ All work happens on a single branch, **`foundation`** (63 commits), to be merged
 | 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`)              | **Done**, reviewed                                       |
 | 2. Engine core (`plans/2026-09-07-engine-core.md`)                                            | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
 | 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Done**; all 8 tasks executed                           |
-| 4. Performance: benchmarks, real-device measurement, LOD thresholds                           | **Plan not written** — next step                         |
+| 4. Performance (`plans/2026-09-08-performance.md`)                                            | **Done**, except the measurement on a real phone         |
 
 ## What already works
 
 `npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all green
-from a clean state. **186 tests across 15 files.**
+from a clean state. **194 tests across 16 files.** `npm run bench` runs the benchmarks,
+which are not part of `npm test` and not part of CI.
 
 **The app now runs on the new engine.** `src/lib/EmojiCanvas.ts` and `useEmojiCanvas` are
 deleted; there is one engine, not two. Verified by hand in a browser as well as by tests:
@@ -57,6 +59,55 @@ Plan 3 added the layers above it:
 | `input/pointer.ts`                              | Pointer Events; one pointer draws, two navigate; wheel and middle-button drag                                |
 | `editor/Editor.ts`                              | The facade: canvas, camera, rAF loop, tools, `useSyncExternalStore` contract                                 |
 | `hooks/useEditor.ts`, `hooks/useEditorState.ts` | React bridge, StrictMode-safe                                                                                |
+
+## What plan 4 found and changed
+
+Benchmarks live in the `browser` project as `*.bench.ts` and run only under `npm run bench`.
+`src/bench/scenarios.ts` holds the fixtures, and the same module drives the dev-only page at
+`/emojicanvas/bench.html`, so the laptop and the phone measure exactly the same thing.
+
+**Two thresholds, both measured, both moved.** `colorLodThresholdPx` 12 → **16** and
+`blockLodThresholdPx` 4 → **6**. The worst case — a 1440x800 viewport at device pixel
+ratio 2 with every visible cell drawn — has glyphs at 5.4ms for 16px cells, 16.0ms for
+14px and 18.4ms for 12px; colour fills at 7.2ms for 8px, 12.4ms for 6px, 17.0ms for 5px
+and 27.1ms for 4px. Both old values were below the budget line, not above it. The numbers
+and the hardware are recorded in `render/theme.ts` beside the values.
+
+**A desktop window is the binding case, not a phone.** At the same cell size a 1440x800
+window holds 3.7 times as many cells as a 390x800 screen, and every scenario that fits the
+budget on the desktop fits it comfortably on the phone at DPR 3.
+
+**16px is cheap because it is an atlas step.** At exactly one buffer pixel per screen
+pixel the browser copies instead of resampling: 4,500 glyphs at 16px cost 5.4ms while
+2,880 at 20px cost 14.5ms. Worth remembering before adding atlas steps or changing
+`baseCellSize`.
+
+**The renderer now walks whichever side is smaller.** Scanning the viewport costs a cell
+lookup, and the string key it builds, for every visible cell whether or not anything is
+drawn there. At minimum zoom that was 1.15 million lookups a frame: an empty screen cost
+5.0ms and a 500-cell drawing 6.3ms. Walking the scene's own cells instead costs 0.09ms and
+0.22ms. A drawing bigger than the viewport still takes the scan, which is then the cheaper
+of the two — measured at 15.3ms either way for a screen with 128,160 cells drawn, which is
+the one worst case still sitting at the edge of the budget.
+
+**Two traps for whoever measures next.**
+
+- **Vitest 5 has no top-level `bench` export.** A benchmark is registered through the
+  `bench` fixture of an ordinary test and run with `bench.compare(...)`; importing `bench`
+  from `vitest` fails outright. The default reporter also prints no table, which is why the
+  script passes `--reporter=verbose`.
+- **A canvas nobody reads back is not rasterised.** Canvas 2D calls only queue work, so a
+  timed frame measures how fast the commands were recorded. Every scenario ends in a
+  one-pixel `getImageData` to force the rasteriser to catch up. Before that flush the
+  numbers were both flattering and unusable — relative margins of error of 13% to 70%
+  against 0.2% to 1.8% after it — and the first set of thresholds derived from them had to
+  be re-derived.
+
+**What CI gained.** `src/render/drawBudget.test.ts` counts drawing calls and cell lookups
+per frame instead of timing them, so it cannot flake on a loaded machine: one glyph per
+visible cell at the glyph level, no glyphs below the colour threshold, block fills bounded
+by the block threshold rather than by the cell count, and lookups bounded by what is drawn.
+`render/scene.test.ts` pins that both walks draw the same picture byte for byte.
 
 ## Settled decisions
 
@@ -203,8 +254,16 @@ are recorded because breaking one is easy and the breakage is quiet.
 - **Pointer coordinates are floored to whole cells** via `screenToCell`, in the `Editor`
   and nowhere else. `cellsBetween` rounds too, but that is a safety net, not the path.
 - **`scene.bounds()` is never called per frame.** The renderer uses `visibleBounds` plus
-  `get`; `getSnapshot().isEmpty` is `scene.size === 0`, because `useSyncExternalStore`
-  calls `getSnapshot` on every render. `bounds()` is for text export only.
+  `get`, or the scene's own entries; `getSnapshot().isEmpty` is `scene.size === 0`, because
+  `useSyncExternalStore` calls `getSnapshot` on every render. `bounds()` is for text export
+  only.
+- **A frame costs the smaller of the viewport and the drawing.** `renderScene` compares
+  `scene.size` with the number of visible cells and walks the smaller side. Pinned by
+  `drawBudget.test.ts`, which counts lookups, and by the two equivalence tests in
+  `scene.test.ts`, which require both walks to produce the same picture byte for byte.
+- **The sparse block path's scratch buffers are module-level and reused.** They are
+  emptied at the start of every frame that uses them; allocating them per frame would put
+  an allocation back into the draw loop.
 - **Cancelling a stroke takes both calls** — `recorder.rollback(scene)` then
   `tool.onCancel(ctx)`. Verified by mutation: dropping the rollback fails the pinch test.
 - **The glyph-centring formula is verified** against real Chromium metrics, and by
@@ -217,40 +276,37 @@ are recorded because breaking one is easy and the breakage is quiet.
 
 ## How to continue
 
-Plans 1 to 3 are done and the app runs on the new engine. What remains before `foundation`
-merges into `main`:
+All four plans are done and the app runs on the new engine. Two things remain before
+`foundation` merges into `main`:
 
-**Plan 4 is the only outstanding work.** Every deferred finding from plans 1 and 2 is
-closed, and formatting is now enforced by a lefthook pre-commit hook and by CI.
+1. **Measure on a real phone.** `npm run dev`, then open the printed network address with
+   `/bench.html` on the device (the base path applies:
+   `http://<lan-ip>:5173/emojicanvas/bench.html`) and press Measure. The page prints each
+   scenario against its budget with PASS or OVER BUDGET, plus the viewport and the device
+   pixel ratio. Everything so far was measured in headless Chromium on a MacBook, where
+   every scenario but one fits the budget; a phone is slower per core and usually runs at
+   DPR 3, so this is the measurement that can still move a threshold. If a scenario comes
+   back over budget, investigate it — do not raise the threshold to make it fit.
+2. **Merge `foundation` into `main`.** Nothing is pushed and `main` still sits at
+   `a11e969`.
 
-1. **Plan 4 — performance**, the spec's step 7. Write it from the spec's "Performance"
-   section: Vitest benchmarks in the browser project for frame time at 1x zoom and at
-   minimum zoom and for a full-screen stroke, then measurement on a real mobile device,
-   then tune the level-of-detail thresholds. **The 12px and 4px thresholds are still their
-   starting values — nothing has measured them.** A benchmark regression is a reason to
-   investigate, not to raise the threshold.
-2. ~~Clear plan 1's deferred findings.~~ **All closed**, including the Tool border
-   colour, which is closed by decision: the buttons are being redesigned and a token
-   source for the React shell belongs to that redesign.
-3. ~~Finding 3 from plan 2 — the reverse-direction line test.~~ **Closed** (`a561e65`).
-   Brute force over every integer pair in [-5,5]² confirmed the finding exactly: 31.5% of
-   pairs violate the symmetry, and the named counterexample `(-5,-5)→(-4,-3)` is real —
-   forward goes through `(-5,-4)`, backward through `(-4,-4)`. The test now asserts what
-   _does_ hold universally (endpoints, length, connectivity, all verified by brute force
-   over the same range) and pins the asymmetry with that counterexample so nobody
-   "fixes" it by accident.
+Also still open, and unchanged by plan 4: the five items under "Deferred out of plan 3",
+and finding 3 from plan 2's review is closed.
 
 ## Starting the next session
 
-Read this file and the spec, then write plan 4 from the spec's "Performance" section with
-the `superpowers:writing-plans` skill. Two things that will not be obvious from the code:
+Read this file and the spec. Three things that will not be obvious from the code:
 
-- **No threshold in `render/theme.ts` has ever been measured.** `colorLodThresholdPx` (12)
-  and `blockLodThresholdPx` (4) are the spec's starting guesses. Plan 4 exists to replace
-  them with numbers from real hardware.
-- **Benchmarks belong to the `browser` project.** `vitest.config.ts` routes
-  `src/{core,tools}/**/*.test.ts` to `node` and everything else to `browser`; a path
-  matching both runs twice.
+- **The thresholds are measured now.** `colorLodThresholdPx` is 16 and
+  `blockLodThresholdPx` is 6, and `render/theme.ts` records the frame times and the
+  hardware behind both. Changing either without a measurement undoes plan 4.
+- **Benchmarks belong to the `browser` project** and run only under `npm run bench`.
+  `vitest.config.ts` routes `src/{core,tools}/**/*.test.ts` to `node` and everything else
+  to `browser`, and gives each project its own `benchmark.include` — without that, the
+  default benchmark glob matches in both and every `.bench.ts` runs twice, once in `node`
+  where there is no document.
+- **Timing a canvas requires reading a pixel back.** See the two traps recorded under
+  "What plan 4 found and changed"; both cost a re-measurement to discover.
 
 The invariants listed above are the things easiest to break while chasing frame time.
 `getSnapshot` returning a cached object and `isEmpty` reading `scene.size` are the two
