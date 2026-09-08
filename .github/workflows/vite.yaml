@@ -34,10 +34,16 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+      # Formatting and lint run before the browser download: they are the
+      # cheapest checks and the ones most likely to fail, and neither needs
+      # Playwright. The pre-commit hook can be skipped with --no-verify, so
+      # this step is what actually keeps unformatted code out of main.
+      - name: Check formatting
+        run: npm run format:check
       - name: Lint
         run: npm run lint
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
       - name: Test
         run: npm test
       - name: Build

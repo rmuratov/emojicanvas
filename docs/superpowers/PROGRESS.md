@@ -165,10 +165,18 @@ Verified live rather than merely installed: a deliberately messy staged file was
 reformatted _and_ had its object keys sorted before landing in the commit, and a file
 carrying an unfixable `no-unused-vars` error had its commit rejected.
 
-The whole tree was formatted once so the rule starts from a clean state. Two limits worth
-knowing: `npm run lint` still does not run Prettier, and `git commit --no-verify` skips
-the hook entirely — **CI checks neither**, so unformatted code can still reach `main` if
-someone bypasses the hook.
+The whole tree was formatted once so the rule starts from a clean state.
+
+**The bypass hole is closed too.** CI now runs `npm run format:check` and `npm run lint`
+before the Playwright download — the cheapest checks, and the ones most likely to fail —
+so `git commit --no-verify` no longer gets unformatted code to `main`. Verified by exit
+code, not output: `format:check` returns 1 on an unformatted file and 0 on a clean tree.
+The hook is now a convenience and CI is the gate, which is why `prepare` ends in
+`|| true`: `lefthook install` exits 128 outside a git repository, and hook installation
+must not be able to break `npm ci`.
+
+`npm run lint` still does not run Prettier; `npm run format:check` is the command for
+that, alongside `npm run format` and `npm run lint:fix` for fixing from the console.
 
 ## Deferred out of plan 3
 

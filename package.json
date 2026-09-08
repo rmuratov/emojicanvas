@@ -7,10 +7,13 @@
     "dev": "vite --host",
     "build": "tsc && tsc -p tsconfig.node.json && vite build",
     "lint": "eslint src --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install || true"
   },
   "dependencies": {
     "emoji-picker-element": "^1.29.1",
