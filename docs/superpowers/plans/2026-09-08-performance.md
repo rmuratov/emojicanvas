@@ -920,12 +920,18 @@ Expected: three lines with times, a budget and PASS or OVER BUDGET. No console e
 Run: `npm run build && ls dist`
 Expected: `dist/index.html` exists and `dist/bench.html` does not.
 
-- [x] **Step 4: Measure on a real phone**
+- [ ] **Step 4: Measure on a real phone** — the one step still open
 
 `npm run dev` already binds to the network (`vite --host`). Open
-`http://<your-lan-ip>:5173/bench.html` on the phone and press Measure. Record the numbers,
-the device and its DPR. If a scenario is over budget, that is a finding to investigate
-before the thresholds move.
+`http://<your-lan-ip>:5173/emojicanvas/bench.html` on the phone — the base path applies —
+and press Measure. Record the numbers, the device and its DPR. If a scenario is over
+budget, that is a finding to investigate before the thresholds move.
+
+Desktop Safari 26 has been measured and stands in for a second engine, not for a phone:
+1470x833 at DPR 2, all four scenarios passing, the worst at 9ms of 16.7ms. A phone is
+slower per core and usually runs at DPR 3. Worth doing in the same session as the mobile
+layout check deferred out of plan 3 — the toolbar against the picker, and the 44px tap
+targets — since both need the same device in hand.
 
 - [x] **Step 5: Update the documents**
 
