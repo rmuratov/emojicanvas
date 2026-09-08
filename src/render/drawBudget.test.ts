@@ -79,20 +79,20 @@ describe('per-frame drawing budget', () => {
     expect(counts.fillRect).toBe(cells + 1)
   })
 
-  it('bounds block fills by the block threshold, not by the cell count', () => {
+  it('paints every block in one image, however many cells there are', () => {
     const { cells, counts } = drawOneFrame(
       DEFAULT_THEME.blockLodThresholdPx / 4,
     )
-    // A block is at least blockLodThresholdPx across, so however far the
-    // camera zooms out the screen holds at most this many of them. This is
-    // the bound that makes zooming out affordable at all.
-    const perRow = DESKTOP_VIEWPORT.width / DEFAULT_THEME.blockLodThresholdPx
-    const perColumn =
-      DESKTOP_VIEWPORT.height / DEFAULT_THEME.blockLodThresholdPx
-    const budget = Math.ceil(perRow + 1) * Math.ceil(perColumn + 1)
 
-    expect(counts.fillRect - 1).toBeLessThanOrEqual(budget)
-    expect(counts.fillRect - 1).toBeLessThan(cells / 4)
+    // A block is at least blockLodThresholdPx across, so the screen holds
+    // tens of thousands of them at this zoom and half a million cells. All
+    // of it reaches the canvas as one scaled blit of a one-pixel-per-block
+    // buffer, plus the background fill — filling each block separately cost
+    // about 8ms of the frame, most of it spent building a colour string per
+    // block.
+    expect(cells).toBeGreaterThan(500_000)
+    expect(counts.drawImage).toBe(1)
+    expect(counts.fillRect).toBe(1)
   })
 })
 

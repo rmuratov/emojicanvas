@@ -8,18 +8,31 @@ import { cellSizeAt, visibleBounds } from '../core/camera'
 import { levelOfDetail } from './theme'
 
 /**
- * Scratch space for the sparse block path: a block's colour sums live in
- * `blockSums` as six numbers — red, green, blue, how many cells, and the
- * block's top-left cell — and `blockSlots` maps a block's position in the
- * viewport to the start of its six. Both are module-level and reused rather
- * than allocated per frame, because this runs inside the draw loop, and both
- * are emptied at the start of every frame that uses them. Rendering is
- * synchronous, so there is never a second frame in flight to share them
- * with.
+ * Scratch space for the block level of detail, module-level and reused
+ * rather than allocated per frame, because this runs inside the draw loop.
+ * `blockSums` holds four numbers per block — red, green, blue and how many
+ * cells were added — indexed by the block's position in the viewport, and
+ * the canvas holds one pixel per block, which is blitted to the screen in a
+ * single scaled drawImage. Rendering is synchronous, so there is never a
+ * second frame in flight to share any of it with.
  */
-const blockSlots = new Map<number, number>()
-const blockSums: number[] = []
-const SLOT_SIZE = 6
+const BLOCK_STRIDE = 4
+
+let blockCanvas: HTMLCanvasElement | null = null
+let blockCtx: CanvasRenderingContext2D | null = null
+let blockImage: ImageData | null = null
+let blockSums = new Uint32Array(0)
+
+/**
+ * The part of the block grid that anything was drawn into, in block
+ * coordinates. Only this rectangle is written and blitted: a small drawing
+ * on a zoomed-out screen would otherwise pay for a screen-sized blit of
+ * mostly transparent pixels.
+ */
+let filledMaxColumn = -1
+let filledMaxRow = -1
+let filledMinColumn = 0
+let filledMinRow = 0
 
 export type RenderOptions = {
   atlas: GlyphAtlas
@@ -70,12 +83,7 @@ export function renderScene(
   const sparse = scene.size < cellCount(bounds)
 
   if (detail === 'block') {
-    if (sparse) {
-      drawSparseBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme)
-    } else {
-      drawBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme)
-    }
-
+    drawBlocks(ctx, scene, atlas, camera, cellSize, bounds, theme, sparse)
     return
   }
 
@@ -109,6 +117,62 @@ export function renderScene(
   }
 }
 
+/** Adds one drawn cell's colour to the block it falls in. */
+function addToBlock(
+  atlas: GlyphAtlas,
+  value: string,
+  x: number,
+  y: number,
+  bounds: CellBounds,
+  span: number,
+  columns: number,
+): void {
+  const column = Math.floor((x - bounds.minX) / span)
+  const row = Math.floor((y - bounds.minY) / span)
+  const sum = (column + row * columns) * BLOCK_STRIDE
+  const rgb = atlas.averageColorRgb(value)
+
+  blockSums[sum] += rgb[0]
+  blockSums[sum + 1] += rgb[1]
+  blockSums[sum + 2] += rgb[2]
+  blockSums[sum + 3]++
+
+  if (column < filledMinColumn) filledMinColumn = column
+  if (column > filledMaxColumn) filledMaxColumn = column
+  if (row < filledMinRow) filledMinRow = row
+  if (row > filledMaxRow) filledMaxRow = row
+}
+
+/**
+ * The one-pixel-per-block buffer, grown to fit and cleared. Null only if the
+ * grid is degenerate, which a zero-sized viewport already rules out before
+ * any of this runs.
+ */
+function blockBuffer(columns: number, rows: number): ImageData | null {
+  if (columns <= 0 || rows <= 0) return null
+
+  blockCanvas ??= document.createElement('canvas')
+
+  if (blockCanvas.width !== columns || blockCanvas.height !== rows) {
+    blockCanvas.width = columns
+    blockCanvas.height = rows
+    blockCtx = blockCanvas.getContext('2d')
+    blockImage = null
+  }
+
+  blockCtx ??= blockCanvas.getContext('2d')
+
+  if (!blockCtx) return null
+
+  if (!blockImage) {
+    blockImage = blockCtx.createImageData(columns, rows)
+  } else {
+    blockImage.data.fill(0)
+  }
+
+  return blockImage
+}
+
 /** How many cells the viewport can see, drawn or not. */
 function cellCount(bounds: CellBounds): number {
   return (bounds.maxX - bounds.minX + 1) * (bounds.maxY - bounds.minY + 1)
@@ -119,6 +183,19 @@ function cellCount(bounds: CellBounds): number {
  * cells are merged into blocks big enough to see and each block is filled
  * with the mean colour of what it contains. Without this, zooming out would
  * mean tens of thousands of sub-pixel fills per frame.
+ *
+ * The blocks are painted as one image rather than as one fill each: a
+ * pixel per block goes into a buffer the size of the block grid, and a
+ * single scaled drawImage puts it on screen. Filling them individually cost
+ * about 8ms of a 16ms frame on a full screen at minimum zoom, most of it
+ * spent building and parsing a `rgb(...)` string for every one of thirty-odd
+ * thousand blocks. Nearest-neighbour scaling keeps each block a flat colour,
+ * and one contiguous image cannot show the seams that made the individual
+ * fills overlap by a pixel.
+ *
+ * `sparse` picks which side to walk: the scene's own cells when the drawing
+ * is smaller than the viewport, the viewport when it is not. Both fill the
+ * same sums and produce the same image.
  */
 function drawBlocks(
   ctx: CanvasRenderingContext2D,
@@ -128,45 +205,100 @@ function drawBlocks(
   cellSize: number,
   bounds: CellBounds,
   theme: Theme,
+  sparse: boolean,
 ): void {
   const span = Math.max(1, Math.ceil(theme.blockLodThresholdPx / cellSize))
   const blockSize = cellSize * span
+  const columns = Math.ceil((bounds.maxX - bounds.minX + 1) / span)
+  const rows = Math.ceil((bounds.maxY - bounds.minY + 1) / span)
+  const image = blockBuffer(columns, rows)
 
-  for (let by = bounds.minY; by <= bounds.maxY; by += span) {
-    for (let bx = bounds.minX; bx <= bounds.maxX; bx += span) {
-      let b = 0
-      let filled = 0
-      let g = 0
-      let r = 0
+  if (!image) return
 
-      for (let y = by; y < by + span && y <= bounds.maxY; y++) {
-        for (let x = bx; x < bx + span && x <= bounds.maxX; x++) {
-          const value = scene.get(x, y)
+  if (blockSums.length < columns * rows * BLOCK_STRIDE) {
+    blockSums = new Uint32Array(columns * rows * BLOCK_STRIDE)
+  } else {
+    blockSums.fill(0, 0, columns * rows * BLOCK_STRIDE)
+  }
 
-          if (value === undefined) continue
+  filledMinColumn = columns
+  filledMinRow = rows
+  filledMaxColumn = -1
+  filledMaxRow = -1
 
-          const rgb = atlas.averageColorRgb(value)
+  if (sparse) {
+    for (const [{ x, y }, value] of scene.entries()) {
+      if (x < bounds.minX || x > bounds.maxX) continue
+      if (y < bounds.minY || y > bounds.maxY) continue
 
-          filled++
-          r += rgb[0]
-          g += rgb[1]
-          b += rgb[2]
-        }
+      addToBlock(atlas, value, x, y, bounds, span, columns)
+    }
+  } else {
+    for (let y = bounds.minY; y <= bounds.maxY; y++) {
+      for (let x = bounds.minX; x <= bounds.maxX; x++) {
+        const value = scene.get(x, y)
+
+        if (value === undefined) continue
+
+        addToBlock(atlas, value, x, y, bounds, span, columns)
       }
+    }
+  }
+
+  // Nothing drawn anywhere in view: no buffer to write and nothing to blit.
+  if (filledMaxColumn < filledMinColumn) return
+
+  const pixels = image.data
+  const width = filledMaxColumn - filledMinColumn + 1
+  const height = filledMaxRow - filledMinRow + 1
+
+  for (let row = filledMinRow; row <= filledMaxRow; row++) {
+    for (let column = filledMinColumn; column <= filledMaxColumn; column++) {
+      const block = column + row * columns
+      const sum = block * BLOCK_STRIDE
+      const filled = blockSums[sum + 3]
 
       if (filled === 0) continue
 
-      ctx.fillStyle = `rgb(${Math.round(r / filled)}, ${Math.round(
-        g / filled,
-      )}, ${Math.round(b / filled)})`
-      ctx.fillRect(
-        bx * cellSize - camera.offsetX,
-        by * cellSize - camera.offsetY,
-        blockSize + 1,
-        blockSize + 1,
-      )
+      const pixel = block * 4
+
+      pixels[pixel] = Math.round(blockSums[sum] / filled)
+      pixels[pixel + 1] = Math.round(blockSums[sum + 1] / filled)
+      pixels[pixel + 2] = Math.round(blockSums[sum + 2] / filled)
+      pixels[pixel + 3] = 255
     }
   }
+
+  // Only the part of the grid that holds anything: a small drawing on a
+  // zoomed-out screen would otherwise pay for a screen-sized blit of mostly
+  // transparent pixels.
+  blockCtx!.putImageData(
+    image,
+    0,
+    0,
+    filledMinColumn,
+    filledMinRow,
+    width,
+    height,
+  )
+
+  const smoothing = ctx.imageSmoothingEnabled
+
+  // Off, or the browser would blur every block into its neighbours; the
+  // whole point of a block is that it is one flat colour.
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(
+    blockCanvas!,
+    filledMinColumn,
+    filledMinRow,
+    width,
+    height,
+    (bounds.minX + filledMinColumn * span) * cellSize - camera.offsetX,
+    (bounds.minY + filledMinRow * span) * cellSize - camera.offsetY,
+    width * blockSize,
+    height * blockSize,
+  )
+  ctx.imageSmoothingEnabled = smoothing
 }
 
 /**
@@ -204,74 +336,6 @@ function drawGrid(
   }
 
   ctx.stroke()
-}
-
-/**
- * The block path for a drawing smaller than the viewport: every drawn cell
- * is added to the block it falls in, then each block is filled once. Same
- * blocks, same alignment and same averaged colour as the dense path — only
- * the walk differs.
- */
-function drawSparseBlocks(
-  ctx: CanvasRenderingContext2D,
-  scene: Scene,
-  atlas: GlyphAtlas,
-  camera: Camera,
-  cellSize: number,
-  bounds: CellBounds,
-  theme: Theme,
-): void {
-  const span = Math.max(1, Math.ceil(theme.blockLodThresholdPx / cellSize))
-  const blockSize = cellSize * span
-  const columns = Math.ceil((bounds.maxX - bounds.minX + 1) / span)
-
-  blockSlots.clear()
-  blockSums.length = 0
-
-  for (const [{ x, y }, value] of scene.entries()) {
-    if (x < bounds.minX || x > bounds.maxX) continue
-    if (y < bounds.minY || y > bounds.maxY) continue
-
-    const column = Math.floor((x - bounds.minX) / span)
-    const row = Math.floor((y - bounds.minY) / span)
-    const key = column + row * columns
-
-    let slot = blockSlots.get(key)
-
-    if (slot === undefined) {
-      slot = blockSums.length
-      blockSlots.set(key, slot)
-      blockSums.push(
-        0,
-        0,
-        0,
-        0,
-        bounds.minX + column * span,
-        bounds.minY + row * span,
-      )
-    }
-
-    const rgb = atlas.averageColorRgb(value)
-
-    blockSums[slot] += rgb[0]
-    blockSums[slot + 1] += rgb[1]
-    blockSums[slot + 2] += rgb[2]
-    blockSums[slot + 3]++
-  }
-
-  for (let slot = 0; slot < blockSums.length; slot += SLOT_SIZE) {
-    const filled = blockSums[slot + 3]
-
-    ctx.fillStyle = `rgb(${Math.round(blockSums[slot] / filled)}, ${Math.round(
-      blockSums[slot + 1] / filled,
-    )}, ${Math.round(blockSums[slot + 2] / filled)})`
-    ctx.fillRect(
-      blockSums[slot + 4] * cellSize - camera.offsetX,
-      blockSums[slot + 5] * cellSize - camera.offsetY,
-      blockSize + 1,
-      blockSize + 1,
-    )
-  }
 }
 
 /**

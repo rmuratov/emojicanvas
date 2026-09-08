@@ -82,13 +82,32 @@ pixel the browser copies instead of resampling: 4,500 glyphs at 16px cost 5.4ms 
 2,880 at 20px cost 14.5ms. Worth remembering before adding atlas steps or changing
 `baseCellSize`.
 
+**Safari found the one case still over budget, and it is fixed.** A run of the page in
+desktop Safari 26 (1470x833, DPR 2) reported 20ms for a full screen at minimum zoom with
+136,220 cells drawn — everything else passed, and the ordinary case, a 500-cell drawing at
+the same zoom, took 2ms. Investigating rather than moving the threshold: the frame split
+into roughly 7ms of scanning the viewport and 8ms of filling thirty-odd thousand blocks
+one `fillRect` at a time, most of the latter spent building and parsing an `rgb(...)`
+string per block. The block level now writes one pixel per block into a buffer and puts it
+on screen with a single scaled `drawImage`, nearest-neighbour, limited to the part of the
+grid anything was drawn into. In headless Chromium the same frame went 15.9ms → 8.6ms, and
+block count stopped mattering: ten times wider blocks now measure the same. An almost empty
+screen at minimum zoom stays at 0.09ms and a 500-cell drawing costs 0.62ms.
+
+**What is left of that worst case is the scan**, about 7ms of the 8.6ms, and it is the cost
+of building a string key per visible cell in `Scene.get`. Removing it means keying cells by
+number instead of by string, which is a change to `core/scene.ts` and its serialisation and
+would put a range limit on coordinates that the unbounded grid does not have today. Not
+done, and not obviously worth it: it only shows up when a drawing covers the whole screen
+at minimum zoom, which is 136,220 drawn cells.
+
 **The renderer now walks whichever side is smaller.** Scanning the viewport costs a cell
 lookup, and the string key it builds, for every visible cell whether or not anything is
 drawn there. At minimum zoom that was 1.15 million lookups a frame: an empty screen cost
 5.0ms and a 500-cell drawing 6.3ms. Walking the scene's own cells instead costs 0.09ms and
 0.22ms. A drawing bigger than the viewport still takes the scan, which is then the cheaper
-of the two — measured at 15.3ms either way for a screen with 128,160 cells drawn, which is
-the one worst case still sitting at the edge of the budget.
+of the two — measured at 15.3ms either way for a screen with 128,160 cells drawn, since
+reduced to 8.6ms by the block blit above.
 
 **Two traps for whoever measures next.**
 

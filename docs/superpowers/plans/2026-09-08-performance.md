@@ -946,3 +946,60 @@ Expected: all pass.
 git add bench.html src/bench/main.ts CLAUDE.md README.md docs/superpowers/PROGRESS.md
 git commit -m "perf: add a dev-only page for measuring frame time on a real device"
 ```
+
+---
+
+### Task 7: The block level as one image, after Safari
+
+Added after the plan was otherwise complete. A run of the page from Task 6 in desktop
+Safari 26 (1470x833 at device pixel ratio 2) reported a full screen at minimum zoom —
+136,220 cells — at 20ms against the 16.7ms budget. Everything else passed, and the
+ordinary case, a 500-cell drawing at the same zoom, took 2ms. The spec's rule is that a
+regression is a reason to investigate.
+
+**Files:**
+
+- Create: `src/render/blockCost.bench.ts`
+- Modify: `src/render/scene.ts`, `src/render/drawBudget.test.ts`
+
+- [x] **Step 1: Split the frame before changing anything**
+
+`blockCost.bench.ts` measures three variants of the same frame: everything; the scan alone,
+with a scene whose cells are all off-screen so the walk still happens and no block is ever
+filled; and the same scan with blocks ten times wider, so a hundredth as many fills. In
+headless Chromium: 15.9ms, 6.8ms, 7.8ms. The frame was half viewport scan and half block
+fills, and the fills were mostly `ctx.fillStyle = \`rgb(...)\`` — a string built and parsed
+for each of thirty-odd thousand blocks.
+
+- [x] **Step 2: Paint the blocks as one image**
+
+Both block walks now accumulate into one `Uint32Array` of sums indexed by block, write a
+pixel per block into a reused `ImageData`, and blit it with a single `drawImage` scaled to
+the block grid, `imageSmoothingEnabled` off so each block stays one flat colour. One
+contiguous image also has no seams, which is what the per-block fills needed their extra
+pixel of overlap for. Only the part of the grid anything was drawn into is written and
+blitted, so a small drawing on a zoomed-out screen does not pay for a screen-sized blit.
+
+- [x] **Step 3: Re-point the draw-call test**
+
+`drawBudget.test.ts` asserted that block fills were bounded by the block threshold; with
+one blit that passes trivially. It now asserts the stronger thing: half a million cells in
+view reach the canvas as exactly one `drawImage` and one `fillRect`, the background. The
+equivalence tests in `scene.test.ts` are unchanged and still pass — both walks produce the
+same picture byte for byte, now through the same blit.
+
+- [x] **Step 4: Measure again**
+
+Worst case 15.9ms → 8.6ms, and block count stopped mattering: ten times wider blocks
+measure the same as the real ones. An almost empty screen at minimum zoom stays at 0.09ms,
+a 500-cell drawing costs 0.62ms. What remains of the worst case is the scan, about 7ms of
+the 8.6ms, which is the string key `Scene.get` builds per visible cell — recorded as a
+finding rather than fixed, because removing it means keying cells by number and putting a
+range limit on a grid the spec calls unbounded.
+
+- [x] **Step 5: Commit**
+
+```bash
+git add src/render/scene.ts src/render/drawBudget.test.ts src/render/blockCost.bench.ts
+git commit -m "perf: paint the block level of detail as one image"
+```

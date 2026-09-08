@@ -95,7 +95,9 @@ the viewport costs a lookup — and the string key it builds — per visible cel
 minimum zoom was 1.15 million of them for a drawing of ten, and 5ms a frame of nothing.
 The level-of-detail thresholds in `render/theme.ts` are measured, not guessed; the numbers
 and the hardware are recorded beside them, and `src/render/lod.bench.ts` is what produced
-them.
+them. The block level of detail reaches the canvas as **one** scaled `drawImage` of a
+one-pixel-per-block buffer, not as a fill per block: filling thirty thousand blocks
+separately cost half the frame, most of it building an `rgb(...)` string per block.
 
 `scene.bounds()` is an O(n) scan of every drawn cell — it is for text export, never for a
 frame, and never for `getSnapshot`, which uses `scene.size === 0` because
