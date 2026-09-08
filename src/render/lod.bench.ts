@@ -29,8 +29,14 @@ const COLOURS_ALWAYS: Theme = {
   colorLodThresholdPx: Infinity,
 }
 
-const GLYPH_SIZES = [24, 16, 12, 10, 8, 6]
-const COLOUR_SIZES = [8, 6, 4, 3, 2]
+const GLYPH_SIZES = [24, 20, 16, 14, 12, 10]
+const COLOUR_SIZES = [8, 7, 6, 5, 4]
+/**
+ * A threshold is one number for every window, so it has to be safe in the
+ * largest one. A desktop viewport is 3.7 times the area of the phone, which
+ * at the same cell size is 3.7 times as many cells to draw.
+ */
+const DESKTOP_DPR = 2
 const MIN_ZOOM_CELL_PX = DEFAULT_THEME.baseCellSize * MIN_ZOOM
 
 test('glyphs at shrinking cell sizes, phone at DPR 3', async ({ bench }) => {
@@ -109,5 +115,47 @@ test('a full screen against a sparse one at minimum zoom', async ({
     bench(`almost empty, ${empty.cells} cells drawn`, () => {
       empty.draw()
     }),
+  )
+})
+
+test('glyphs at shrinking cell sizes, desktop at DPR 2', async ({ bench }) => {
+  const scenarios = GLYPH_SIZES.map(cellSizePx => ({
+    cellSizePx,
+    scenario: frameScenario({
+      cellSizePx,
+      dpr: DESKTOP_DPR,
+      theme: GLYPHS_ALWAYS,
+      viewport: DESKTOP_VIEWPORT,
+    }),
+  }))
+
+  await bench.compare(
+    ...scenarios.map(({ cellSizePx, scenario }) =>
+      bench(`${cellSizePx}px cells, ${scenario.cells} glyphs`, () => {
+        scenario.draw()
+      }),
+    ),
+  )
+})
+
+test('colour fills at shrinking cell sizes, desktop at DPR 2', async ({
+  bench,
+}) => {
+  const scenarios = COLOUR_SIZES.map(cellSizePx => ({
+    cellSizePx,
+    scenario: frameScenario({
+      cellSizePx,
+      dpr: DESKTOP_DPR,
+      theme: COLOURS_ALWAYS,
+      viewport: DESKTOP_VIEWPORT,
+    }),
+  }))
+
+  await bench.compare(
+    ...scenarios.map(({ cellSizePx, scenario }) =>
+      bench(`${cellSizePx}px cells, ${scenario.cells} fills`, () => {
+        scenario.draw()
+      }),
+    ),
   )
 })

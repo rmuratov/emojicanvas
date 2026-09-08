@@ -166,7 +166,9 @@ describe('per-frame scene lookups', () => {
       1,
     )
 
-    expect(visible).toBeGreaterThan(5000)
+    // The viewport holds thousands of cells and the drawing has one; how
+    // many exactly depends on the threshold, which measurement may move.
+    expect(visible).toBeGreaterThan(1000)
     expect(counts.get).toBeLessThan(visible / 100)
   })
 
