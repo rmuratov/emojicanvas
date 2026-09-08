@@ -10,7 +10,7 @@ export const EmojiPickerButton: FC<EmojiPickerButtonProps> = ({
   onClick,
   onEmojiClick,
 }) => (
-  <Tool className="relative" isSelected={!isSelected} onClick={onClick}>
+  <Tool className="relative" isSelected={isSelected} onClick={onClick}>
     {brush}
     <EmojiPicker isHidden={isEmojiPickerHidden} onEmojiClick={onEmojiClick} />
   </Tool>
