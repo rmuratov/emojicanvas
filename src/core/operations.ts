@@ -1,6 +1,6 @@
 import type { Emoji } from './types'
 
-import { Scene } from './scene'
+import { keyOf, parseKey, Scene } from './scene'
 
 export type CellChange = { value: Emoji | undefined; x: number; y: number }
 export type Operation = { changes: readonly CellChange[]; label: string }
@@ -25,7 +25,7 @@ export class StrokeRecorder {
     const inverse: CellChange[] = []
 
     for (const change of this.changes.values()) {
-      const key = `${change.x},${change.y}`
+      const key = keyOf(change.x, change.y)
       const previous = this.before.get(key)
 
       if (previous === change.value) continue
@@ -58,7 +58,7 @@ export class StrokeRecorder {
 
     if (current === value) return false
 
-    const key = `${x},${y}`
+    const key = keyOf(x, y)
 
     if (!this.before.has(key)) {
       this.before.set(key, current)
@@ -73,9 +73,7 @@ export class StrokeRecorder {
   /** Puts the scene back as it was before the stroke started. */
   rollback(scene: Scene): void {
     for (const [key, value] of this.before) {
-      const comma = key.indexOf(',')
-      const x = Number(key.slice(0, comma))
-      const y = Number(key.slice(comma + 1))
+      const { x, y } = parseKey(key)
 
       scene.writeCell(x, y, value)
     }

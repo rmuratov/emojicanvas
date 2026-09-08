@@ -104,6 +104,26 @@ export class Scene {
   }
 }
 
+/**
+ * The canonical string key for a cell. Exported so that other modules
+ * needing their own cell-keyed maps (StrokeRecorder, in particular) share
+ * this exact encoding instead of re-deriving it — the format is decided
+ * here and nowhere else.
+ */
+export function keyOf(x: number, y: number): string {
+  return `${x},${y}`
+}
+
+/** Inverse of `keyOf`, tolerant of surrounding whitespace via `Number()`. */
+export function parseKey(key: string): Cell {
+  const comma = key.indexOf(',')
+
+  return {
+    x: Number(key.slice(0, comma)),
+    y: Number(key.slice(comma + 1)),
+  }
+}
+
 function isValidKey(key: string): boolean {
   const comma = key.indexOf(',')
 
@@ -116,17 +136,4 @@ function isValidKey(key: string): boolean {
 
 function isValidValue(value: unknown): value is Emoji {
   return typeof value === 'string' && value.length > 0
-}
-
-function keyOf(x: number, y: number): string {
-  return `${x},${y}`
-}
-
-function parseKey(key: string): Cell {
-  const comma = key.indexOf(',')
-
-  return {
-    x: Number(key.slice(0, comma)),
-    y: Number(key.slice(comma + 1)),
-  }
 }

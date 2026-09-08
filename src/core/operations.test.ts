@@ -205,4 +205,26 @@ describe('StrokeRecorder', () => {
 
     expect(recorder.commit('after rollback')).toBeNull()
   })
+
+  it('keys stroke changes the same way Scene keys direct writes, avoiding collisions', () => {
+    // 1,23 and 12,3 concatenate to the same digits ("123") under a key
+    // format lacking a field separator. Scene guards against that (see
+    // the equivalent test in scene.test.ts), and StrokeRecorder must
+    // guard against it identically now that both share Scene's `keyOf` —
+    // a future divergence between the two encodings would surface here
+    // as a stroke change silently clobbering, or being clobbered by, an
+    // unrelated cell.
+    const scene = new Scene()
+    const recorder = new StrokeRecorder()
+
+    recorder.record(scene, 1, 23, 'from stroke')
+    scene.writeCell(12, 3, 'direct write')
+
+    expect(scene.get(1, 23)).toBe('from stroke')
+    expect(scene.get(12, 3)).toBe('direct write')
+
+    const result = recorder.commit('draw')
+
+    expect(result!.op.changes).toEqual([{ value: 'from stroke', x: 1, y: 23 }])
+  })
 })
