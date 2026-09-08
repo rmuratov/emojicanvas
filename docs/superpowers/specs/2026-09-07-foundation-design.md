@@ -1,137 +1,144 @@
-# EmojiCanvas: фундамент
+# EmojiCanvas: Foundation
 
-Дата: 2026-09-07
+Date: 2026-09-07
 
-## Зачем
+## Why
 
-Проекту три года. Задача — обновить тулчейн, перестроить движок так, чтобы он выдержал
-запланированные фичи, и покрыть его тестами. Функционально приложение остаётся прежним.
+The project is three years old. The task is to update the toolchain, rebuild the engine so
+it can carry the planned features, and cover it with tests. The application's functionality
+stays the same.
 
-Продуктовая рамка, определяющая архитектурные решения: EmojiCanvas — не «рисовалка
-эмодзи-текста», а **пиксельный редактор, где пиксель — это эмодзи**. Текстовый экспорт —
-один из выходов, наряду с растровым экспортом и ссылкой на редактор.
+The product framing that drives the architectural decisions: EmojiCanvas is not "a drawing
+app for emoji text" but a **pixel editor where the pixel is an emoji**. Text export is one
+of several outputs, alongside raster export and a link to the editor.
 
-Запланированные фичи (в этой итерации не реализуются, но фундамент обязан их выдержать):
+Planned features (not implemented in this iteration, but the foundation must support them):
 
-| Фича | Требование к фундаменту |
+| Feature | Requirement on the foundation |
 |---|---|
-| Растеризация картинки в эмодзи-мозаику | Массовая запись клеток одной операцией |
-| Инструменты Paint: линия, прямоугольник, заливка | Абстракция инструмента, порождающего операции |
-| Undo/redo | Обратимые операции (входит в эту итерацию) |
-| Экспорт в PNG/JPG | Рендер, не привязанный к экранному холсту |
-| Шаринг ссылкой на редактор | Сцена — чистые сериализуемые данные |
-| Пиксельный редизайн | Параметры вида вынесены из логики рендера |
+| Rasterizing an image into an emoji mosaic | Bulk cell writes in a single operation |
+| Paint tools: line, rectangle, fill | A tool abstraction that produces operations |
+| Undo/redo | Reversible operations (part of this iteration) |
+| Export to PNG/JPG | Rendering not tied to the on-screen canvas |
+| Sharing a link to the editor | The scene is pure, serializable data |
+| Pixel-art redesign | View parameters factored out of rendering logic |
 
-Зум и панорама изначально числились в этом списке, но переведены в объём итерации:
-на телефоне палец накрывает три-четыре клетки, и без масштабирования точное рисование
-невозможно. Это не украшение, а условие работоспособности мобильной версии.
+Zoom and panning were originally on this list but were pulled into this iteration's scope:
+on a phone a finger covers three or four cells, and without zoom, precise drawing is
+impossible. This isn't a nicety, it's a condition for the mobile version to work at all.
 
-Сознательно **не** закладывается: слои, плагины, палитра цветов эмодзи, формат файла.
-Это спекуляция — проектируется, когда до неё дойдёт дело.
+Deliberately **not** planned for: layers, plugins, an emoji color palette, a file format.
+That's speculation, to be designed when it's actually needed.
 
-## Язык
+## Language
 
-Весь код в репозитории — на английском: идентификаторы, комментарии, имена тестов,
-сообщения коммитов. Этот документ и планы написаны по-русски, но ничто из них не
-попадает в код дословно: примеры кода здесь приводятся с английскими комментариями
-именно поэтому.
+Everything in the repository is in English: code, identifiers, comments, test names,
+commit messages, and the documents under `docs/` — this specification and the
+implementation plans included.
 
-## Границы итерации
+This was not always the case. The spec and the first plans were originally written in
+Russian, and test names were once copied out of a plan into the repository verbatim,
+in Russian. Translating the documents removes the source of that mistake rather than
+relying on everyone remembering to translate as they go.
 
-**Входит:** обновление зависимостей и CI; новое ядро, рендер, ввод, инструменты;
-undo/redo; зум, панорама и жесты; мобильный UX; тесты; перевод React-оболочки на новый
-движок.
+## Iteration scope
 
-**Не входит:** инструменты фигур, растеризация картинок, растровый экспорт, сохранение
-и шаринг, скриншотные эталоны, зашитый эмодзи-шрифт, редизайн.
+**In scope:** dependency and CI updates; the new core, renderer, input, tools; undo/redo;
+zoom, panning and gestures; mobile UX; tests; porting the React shell onto the new engine.
 
-Пользовательский функционал после итерации — текущий плюс undo/redo и навигация по
-холсту: кисть, ластик, очистка, копирование в текст. Внешний вид сохраняется.
+**Out of scope:** shape tools, image rasterization, raster export, saving and sharing,
+screenshot baselines, a bundled emoji font, the redesign.
 
-## Выбор технологий
+User-facing functionality after this iteration is the current set plus undo/redo and canvas
+navigation: brush, eraser, clear, copy to text. The look stays the same.
 
-**Рендер — canvas 2D, без игрового движка.** Phaser отпадает как игровой движок: сцены,
-физика, аудио и игровой цикл для редактора чужие. Pixi.js уместнее, но его сильная
-сторона — батчинг множества объектов с независимыми трансформациями, а у нас регулярная
-сетка одинаковых глифов из небольшого набора. Спрайт на клетку не годится при миллионах
-клеток, значит поверх Pixi пришлось бы писать собственный тайловый рендер — то есть брать
-библиотеку ради шейдеров, а не ради API. Вдобавок WebGL плохо тестируется headless.
+## Technology choices
 
-Арифметика показывает, что нужды нет: экран Full HD при клетке 30px — это 64×36 ≈ 2300
-клеток, то есть около 2300 вызовов `drawImage` из одного атласа при бюджете кадра 16.7 мс.
-Узкое место возникает не здесь, а при сильном отдалении, и решается уровнями детализации
-(см. «Производительность»), а не сменой технологии рендера.
+**Rendering: canvas 2D, no game engine.** Phaser is out as a game engine: scenes, physics,
+audio and a game loop are all foreign to an editor. Pixi.js is a closer fit, but its
+strength is batching many objects with independent transforms, whereas we have a regular
+grid of identical glyphs from a small set. A sprite per cell doesn't scale to millions of
+cells, which means we'd end up writing our own tile renderer on top of Pixi anyway, i.e.
+pulling in a library for its shaders rather than its API. On top of that, WebGL doesn't test
+well headless.
 
-Решение не запирающее: рендер изолирован за `render/scene.ts`, и переезд на WebGL заменит
-один модуль, не затронув ядро, инструменты и UI.
+The arithmetic shows there's no need for it: a Full HD screen at a 30px cell size is
+64×36 ≈ 2300 cells, i.e. around 2300 `drawImage` calls from a single atlas within a 16.7ms
+frame budget. The bottleneck isn't there, it shows up at strong zoom-out, and is solved by
+levels of detail (see "Performance"), not by switching rendering technology.
 
-**React остаётся.** Его роль — только интерфейсный хром: панель инструментов, пикер,
-будущие панели, диалоги и галерея. В отрисовке кадров React не участвует: холстом владеет
-движок и рисует по `requestAnimationFrame`, во время рисования перерендера не происходит.
-Цена React — вес бандла и ноль в горячем пути. Учитывая планы на полноценный редактор,
-интерфейс будет расти, и ванильная замена превратилась бы в самописный фреймворк.
-Preact с тем же API остаётся возможной оптимизацией размера на будущее.
+The decision isn't a lock-in: the renderer is isolated behind `render/scene.ts`, and a move
+to WebGL would replace one module without touching the core, tools, or UI.
 
-## Дефекты текущего кода, которые чинятся по пути
+**React stays.** Its role is interface chrome only: the toolbar, the picker, future panels,
+dialogs and a gallery. React has no part in frame drawing: the engine owns the canvas and
+draws via `requestAnimationFrame`, with no re-render happening while drawing. React's cost
+is bundle weight, and zero in the hot path. Given the plans for a full-featured editor, the
+interface is going to grow, and a hand-rolled vanilla replacement would turn into a
+homegrown framework. Preact, with the same API, remains a possible future size
+optimization.
 
-1. `initMatrix` строит `columnsCount` строк по `rowsCount` элементов, а `getDrawingAsString`
-   читает `matrix[j][i]`. Работает только на квадратной сетке; любая прямоугольная ломает
-   и рисование, и экспорт.
-2. `clearCell` закрашивает прямоугольник своей клетки и срезает хвост эмодзи из соседней:
-   глифы штатно выходят за границы клетки (`font-size` равен высоте клетки, плюс сдвиг
-   `emojiOffsetInsideCellY = 4`).
-3. Тем же `fillRect` затираются линии сетки, и восстановить их некому — `drawGrid`
-   вызывается только при очистке.
-4. Одиночный тап на мобильном устройстве не рисует: `touchstart` лишь ставит флаг,
-   `touchend` его снимает, а рисование живёт только в `touchmove`.
-5. Быстрое движение указателя оставляет дырки: рисование идёт только в точках событий,
-   без интерполяции между ними.
-6. `useEmojiPicker` вешает слушатель без снятия — при каждом изменении колбэка добавляется
-   ещё один. Рядом забытый `console.log`.
-7. `useEmojiCanvas` зависит от состояния, которое сам же устанавливает; cleanup замыкается
-   на предыдущее значение.
-8. `remove()` убирает элемент холста, но не снимает слушатели.
-9. В `Tool.tsx` выражение `${isSelected && 'bg-slate-200'}` при `false` подставляет в
-   `className` строку `"false"`.
-10. Хардкодные `emojiOffsetInsideCellX/Y` одинаковы для всех глифов, из-за чего символы
-    с эмодзи-селектором (`❤️` = U+2764 U+FE0F, `〰️` = U+3030 U+FE0F) рисуются со смещением,
-    а нативные эмодзи (`😀` = U+1F600) — нет.
+## Defects in the current code fixed along the way
 
-Дефекты 1–5 и 10 исчезают как класс из-за смены архитектуры, а не точечными заплатками.
+1. `initMatrix` builds `columnsCount` rows of `rowsCount` elements each, while
+   `getDrawingAsString` reads `matrix[j][i]`. This only works on a square grid; any
+   rectangular one breaks both drawing and export.
+2. `clearCell` fills in the rectangle of its own cell and clips the tail of an emoji from
+   the neighboring one: glyphs routinely spill outside cell bounds (`font-size` equals the
+   cell height, plus the `emojiOffsetInsideCellY = 4` offset).
+3. The same `fillRect` erases the grid lines, and nothing redraws them; `drawGrid` is only
+   called on clear.
+4. A single tap on mobile doesn't draw: `touchstart` only sets a flag, `touchend` clears it,
+   and drawing only happens in `touchmove`.
+5. Fast pointer movement leaves gaps: drawing only happens at event points, with no
+   interpolation between them.
+6. `useEmojiPicker` attaches a listener without removing it; every callback change adds
+   another one. There's also a forgotten `console.log` nearby.
+7. `useEmojiCanvas` depends on state that it sets itself; the cleanup closes over the
+   previous value.
+8. `remove()` removes the canvas element but doesn't detach the listeners.
+9. In `Tool.tsx`, the expression `${isSelected && 'bg-slate-200'}` substitutes the string
+   `"false"` into `className` when `isSelected` is false.
+10. Hardcoded `emojiOffsetInsideCellX/Y` are the same for every glyph, which is why symbols
+    with an emoji selector (`❤️` = U+2764 U+FE0F, `〰️` = U+3030 U+FE0F) render with an
+    offset while native emoji (`😀` = U+1F600) don't.
 
-## Архитектура
+Defects 1-5 and 10 disappear as a class from the architecture change, not from targeted
+patches.
+
+## Architecture
 
 ```
 src/
-  core/          чистые данные и логика, ноль DOM
+  core/          pure data and logic, zero DOM
     types.ts       Cell, CellBounds, Emoji
-    scene.ts       разреженное хранилище клеток, сериализуемое
-    operations.ts  единственный путь мутации, обратимый
-    history.ts     стек undo/redo
-    camera.ts      экран ↔ координаты клеток
-    line.ts        интерполяция клеток между двумя точками
-    export/text.ts сцена → строка
-  render/        знает про canvas, не знает про React
-    glyphAtlas.ts  растеризация эмодзи с центровкой по метрикам
-    scene.ts       рисует сцену в переданный контекст
-    theme.ts       цвета, размер клетки, сглаживание
+    scene.ts       sparse cell storage, serializable
+    operations.ts  the single mutation path, reversible
+    history.ts     undo/redo stack
+    camera.ts      screen ↔ cell coordinates
+    line.ts        cell interpolation between two points
+    export/text.ts scene → string
+  render/        knows about canvas, doesn't know about React
+    glyphAtlas.ts  emoji rasterization centered by metrics
+    scene.ts       draws the scene into a supplied context
+    theme.ts       colors, cell size, antialiasing
   input/
-    pointer.ts     Pointer Events → координаты клеток
+    pointer.ts     Pointer Events → cell coordinates
   tools/
-    types.ts       интерфейс инструмента
+    types.ts       tool interface
     brush.ts, eraser.ts
   editor/
-    Editor.ts      фасад, склеивающий слои
-  ui/            тонкая React-оболочка
+    Editor.ts      facade gluing the layers together
+  ui/            thin React shell
 ```
 
-Зависимости направлены строго внутрь: `ui` → `editor` → `render`/`input`/`tools` → `core`.
-`core` не импортирует ничего из остальных слоёв и не касается DOM.
+Dependencies point strictly inward: `ui` → `editor` → `render`/`input`/`tools` → `core`.
+`core` imports nothing from the other layers and never touches the DOM.
 
 ### core/scene.ts
 
-Разреженное хранилище: ключ есть — клетка нарисована, ключа нет — пусто. Координаты —
-любые целые числа, включая отрицательные; границ у холста нет.
+Sparse storage: a key present means the cell is drawn, a key absent means it's empty.
+Coordinates are arbitrary integers, including negative ones; the canvas has no bounds.
 
 ```ts
 type Emoji = string
@@ -149,17 +156,17 @@ class Scene {
 }
 ```
 
-Реализация первой версии — `Map` со строковым ключом `` `${x},${y}` ``. Хранилище спрятано
-за этим интерфейсом: если строковый ключ станет узким местом на миллионах клеток,
-реализация меняется без правок в остальном коде.
+The first version's implementation is a `Map` with the string key `` `${x},${y}` ``. The
+storage is hidden behind this interface: if the string key becomes a bottleneck at millions
+of cells, the implementation can change without touching the rest of the code.
 
-`bounds()` считается обходом заполненных клеток по требованию, а не поддерживается
-инкрементально: при стирании граница может сжаться, и инкрементальный учёт потребовал бы
-пересчёта всё равно.
+`bounds()` is computed by walking the filled cells on demand, rather than maintained
+incrementally: erasing can shrink the boundary, and incremental tracking would need to
+recompute anyway.
 
-Запись в сцену выполняют только `operations.ts` и `StrokeRecorder`: у `Scene` есть
-низкоуровневый метод записи, но он помечен как внутренний и не используется ни рендером,
-ни инструментами, ни UI. Для всего остального кода сцена доступна только на чтение.
+Only `operations.ts` and `StrokeRecorder` write to the scene: `Scene` has a low-level write
+method, but it's marked internal and used by neither the renderer, the tools, nor the UI.
+For everything else, the scene is read-only.
 
 ### core/operations.ts
 
@@ -171,11 +178,11 @@ function applyOperation(scene: Scene, op: Operation): void
 function invertOperation(scene: Scene, op: Operation): Operation  // reads state BEFORE the operation is applied
 ```
 
-Одна операция описывает произвольное количество клеток. Мазок кисти — одна операция,
-а не тысяча одиночных записей; растеризация картинки — тоже одна.
+A single operation describes an arbitrary number of cells. A brush stroke is one operation,
+not a thousand individual writes; rasterizing an image is also one.
 
-Мазок накапливается по ходу рисования, чтобы холст обновлялся немедленно, а в историю
-попадал целиком:
+A stroke accumulates as drawing proceeds, so the canvas updates immediately while the
+history receives it whole:
 
 ```ts
 class StrokeRecorder {
@@ -185,11 +192,12 @@ class StrokeRecorder {
 }
 ```
 
-`record` запоминает прежнее значение клетки (только при первом касании этой клетки),
-сразу пишет новое в сцену и возвращает признак, изменилось ли что-нибудь. `commit`
-отдаёт накопленную операцию вместе с готовой инверсией либо `null`, если мазок ничего
-не изменил. `rollback` возвращает сцену к состоянию до начала мазка и ничего не пишет
-в историю — это нужно, когда начатое рисование оказалось началом жеста навигации.
+`record` remembers a cell's previous value (only on that cell's first touch), writes the new
+value into the scene right away, and returns whether anything actually changed. `commit`
+returns the accumulated operation together with a ready-made inverse, or `null` if the
+stroke changed nothing. `rollback` restores the scene to its state before the stroke began
+and writes nothing to history, needed when drawing that had already started turns out to be
+the start of a navigation gesture instead.
 
 ### core/history.ts
 
@@ -205,7 +213,7 @@ class History {
 }
 ```
 
-`commit` очищает стек redo. При превышении лимита самые старые записи отбрасываются.
+`commit` clears the redo stack. Once the limit is exceeded, the oldest entries are dropped.
 
 ### core/camera.ts
 
@@ -218,11 +226,11 @@ function cellToScreen(camera: Camera, baseCellSize: number, x: number, y: number
 function visibleBounds(camera: Camera, baseCellSize: number, width: number, height: number): CellBounds
 ```
 
-`screenToCell` использует `Math.floor`, поэтому корректно работает в отрицательной зоне.
+`screenToCell` uses `Math.floor`, so it works correctly in the negative range.
 
-Масштаб ограничен диапазоном `[0.1, 4]`. Масштабирование всегда происходит относительно
-опорной точки (курсор или центр щипка): точка сцены под пальцем обязана остаться под
-пальцем — это отдельный тест.
+Zoom is clamped to `[0.1, 4]`. Zooming always happens around an anchor point (the cursor or
+the pinch center): the scene point under the finger must stay under the finger, which has
+its own dedicated test.
 
 ### core/line.ts
 
@@ -230,7 +238,7 @@ function visibleBounds(camera: Camera, baseCellSize: number, width: number, heig
 function cellsBetween(from: Cell, to: Cell): Cell[]  // Bresenham, both endpoints included
 ```
 
-Чинит дырки при быстром рисовании и переиспользуется будущим инструментом «линия».
+Fixes gaps from fast drawing and will be reused by the future "line" tool.
 
 ### core/export/text.ts
 
@@ -238,22 +246,23 @@ function cellsBetween(from: Cell, to: Cell): Cell[]  // Bresenham, both endpoint
 function toText(scene: Scene, filler?: string): string  // filler defaults to '〰️'
 ```
 
-Берёт `bounds()`, обходит прямоугольник построчно сверху вниз, подставляя филлер в пустые
-клетки внутри границ. Пустая сцена даёт пустую строку.
+Takes `bounds()`, walks the rectangle row by row top to bottom, substituting the filler into
+empty cells within the bounds. An empty scene yields an empty string.
 
-Филлера в модели нет: он существует только здесь, как деталь текстового представления.
-Обрезка пустых краёв получается автоматически — обрезать нечего, границы и есть содержимое.
+The filler has no place in the model: it exists only here, as a detail of the text
+representation. Trimming empty edges falls out for free, there's nothing to trim; the
+bounds are the content.
 
-## Рендер
+## Rendering
 
-Холст создаётся размером с контейнер, а не с сетку. Это снимает ограничение браузера на
-площадь canvas (сетка 1000×1000 клеток по 30px потребовала бы холст 30000×30000, что
-недопустимо) и делает стоимость кадра зависящей от размера окна, а не размера рисунка.
-Размер отслеживается через `ResizeObserver`, учитывается `devicePixelRatio`.
+The canvas is created at the size of the container, not of the grid. This removes the
+browser's limit on canvas area (a 1000×1000-cell grid at 30px per cell would need a
+30000×30000 canvas, which isn't allowed) and makes frame cost depend on window size, not
+drawing size. Size is tracked via `ResizeObserver`, and `devicePixelRatio` is accounted for.
 
-Перерисовка полная, но только в пределах `visibleBounds`. Кадры склеиваются через
-`requestAnimationFrame`: изменения помечают холст грязным, отрисовка происходит один раз
-за кадр независимо от частоты событий указателя.
+Redraws are full but confined to `visibleBounds`. Frames are coalesced through
+`requestAnimationFrame`: changes mark the canvas dirty, and drawing happens once per frame
+regardless of how often pointer events arrive.
 
 ```ts
 function renderScene(
@@ -263,9 +272,9 @@ function renderScene(
 ): void
 ```
 
-Контекст передаётся снаружи. Экранный холст и offscreen-буфер для растрового экспорта
-пойдут через один и тот же код, поэтому экспорт в PNG позже окажется вызовом этой функции
-с другим аргументом, а не новой веткой рендера.
+The context is passed in from outside. The on-screen canvas and an offscreen buffer for
+raster export will go through the same code, so PNG export will later be a call to this
+function with a different argument, not a new rendering path.
 
 ### render/glyphAtlas.ts
 
@@ -278,62 +287,62 @@ class GlyphAtlas {
 }
 ```
 
-Каждый уникальный эмодзи растеризуется один раз в offscreen-буфер размером с клетку,
-дальше рисуется дешёвым `drawImage` вместо дорогого `fillText`.
+Each unique emoji is rasterized once into an offscreen buffer sized to a cell, and after
+that is drawn with a cheap `drawImage` instead of an expensive `fillText`.
 
-Растеризация идёт не на произвольном размере клетки, а на **фиксированных ступенях**
-(16, 32, 64, 128 логических пикселей); рендер берёт ближайшую ступень и доводит до нужного
-размера самим `drawImage`. Без ступеней плавный щипок перерастеризовывал бы весь набор
-глифов на каждом кадре и убивал бы частоту кадров.
+Rasterization doesn't happen at an arbitrary cell size but at **fixed steps** (16, 32, 64,
+128 logical pixels); the renderer picks the nearest step and scales to the needed size with
+`drawImage` itself. Without steps, a smooth pinch would re-rasterize the whole glyph set
+every frame and kill the frame rate.
 
-`averageColor` считается один раз при растеризации по пикселям уже готового глифа —
-отдельная таблица цветов не нужна. Он же понадобится будущей растеризации картинок
-в эмодзи-мозаику.
+`averageColor` is computed once at rasterization time from the pixels of the already-drawn
+glyph; a separate color table isn't needed. It will also be needed by the future
+image-to-emoji-mosaic rasterization.
 
-Центровка по фактическим метрикам глифа вместо общей константы. При `textAlign: 'left'`
-и `textBaseline: 'alphabetic'` для метрик `m = ctx.measureText(emoji)`:
+Centering uses the glyph's actual metrics instead of a shared constant. With
+`textAlign: 'left'` and `textBaseline: 'alphabetic'`, for metrics `m = ctx.measureText(emoji)`:
 
 ```
-ширина глифа  = m.actualBoundingBoxLeft + m.actualBoundingBoxRight
-высота глифа  = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent
+glyph width  = m.actualBoundingBoxLeft + m.actualBoundingBoxRight
+glyph height = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent
 x = cell/2 - (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2
 y = cell/2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2
 ```
 
-Если глиф не помещается в клетку, размер шрифта уменьшается на
-`min(1, (cell - padding) / max(ширина, высота))` и глиф растеризуется повторно. Это
-выравнивает визуальный размер символов разных категорий — в том числе `❤️` и нативных
-эмодзи, которые сейчас отображаются по-разному.
+If a glyph doesn't fit the cell, the font size is reduced by
+`min(1, (cell - padding) / max(width, height))` and the glyph is rasterized again. This
+evens out the visual size of symbols from different categories, including `❤️` versus
+native emoji, which currently render at different sizes.
 
-Если браузер вернул нулевые метрики, применяется запасной вариант: `textAlign: 'center'`,
-`textBaseline: 'middle'`, отрисовка в центр клетки.
+If the browser returns zero metrics, a fallback kicks in: `textAlign: 'center'`,
+`textBaseline: 'middle'`, drawn at the cell's center.
 
-Атлас пересоздаётся при изменении размера клетки или `devicePixelRatio`.
+The atlas is recreated whenever cell size or `devicePixelRatio` changes.
 
-### Уровни детализации
+### Levels of detail
 
-При сильном отдалении глиф физически неразличим, и рисовать его бессмысленно. Поэтому
-рендер выбирает режим по текущему размеру клетки:
+At strong zoom-out a glyph is physically indistinguishable, so drawing it is pointless. The
+renderer therefore picks a mode based on the current cell size:
 
-- **≥ 12px** — глиф из атласа;
-- **< 12px** — заливка клетки средним цветом эмодзи, сетка не рисуется;
-- **< 4px** — клетки объединяются в блоки, заливка усреднённым цветом блока.
+- **≥ 12px** — glyph from the atlas;
+- **< 12px** — the cell is filled with the emoji's average color, no grid drawn;
+- **< 4px** — cells are merged into blocks, filled with the block's averaged color.
 
-Порог 12px — стартовое значение, уточняется замерами на шаге производительности.
-Это и делает отдалённый вид осмысленным (получается миникарта), и снимает единственный
-сценарий, где canvas 2D мог бы не уложиться в бюджет кадра.
+The 12px threshold is a starting value, to be refined by measurements in the performance
+step. This is what makes the zoomed-out view meaningful (it becomes a minimap), and it
+removes the one scenario where canvas 2D could fail to stay within the frame budget.
 
 ### render/theme.ts
 
-Цвета фона, линий сетки, базовый размер клетки, шрифтовой стек, пороги уровней
-детализации, флаг сглаживания. Пиксельный редизайн будет правкой этого модуля
-и React-оболочки, не логики рендера.
+Background color, grid line color, base cell size, font stack, level-of-detail thresholds,
+an antialiasing flag. The pixel-art redesign will be an edit to this module and the React
+shell, not to rendering logic.
 
-## Ввод и инструменты
+## Input and tools
 
-Обработчики `mouse*` и `touch*` заменяются на Pointer Events: один код на мышь, палец
-и стилус. `setPointerCapture` не даёт рисованию срываться при выходе за границы холста.
-Рисование начинается в `pointerdown`, поэтому одиночный клик и тап работают.
+The `mouse*` and `touch*` handlers are replaced with Pointer Events: one code path for
+mouse, finger, and stylus. `setPointerCapture` keeps drawing from breaking when the pointer
+leaves the canvas bounds. Drawing starts on `pointerdown`, so a single click or tap works.
 
 ```ts
 function attachPointerInput(
@@ -348,18 +357,19 @@ function attachPointerInput(
 ): () => void   // returns a detach function
 ```
 
-Между предыдущей и текущей клеткой достраивается путь через `cellsBetween`.
+A path is filled in between the previous and current cell via `cellsBetween`.
 
-**Разделение жестов.** Один указатель — рисование. Два указателя — навигация: расстояние
-между ними даёт масштаб, смещение середины — панораму; это привычная по Procreate
-и Figma схема. Появление второго пальца отменяет начатый мазок: `StrokeRecorder` умеет
-откатить накопленное, чтобы попытка отмасштабировать не оставляла случайную линию.
+**Gesture separation.** One pointer means drawing. Two pointers mean navigation: the
+distance between them gives zoom, the midpoint's displacement gives pan; this is the scheme
+familiar from Procreate and Figma. A second finger appearing cancels a stroke already in
+progress: `StrokeRecorder` can roll back what's accumulated so far, so that an attempt to
+zoom doesn't leave a stray line behind.
 
-На десктопе: колесо — панорама, `Ctrl`/`Cmd` с колесом — масштаб, средняя кнопка или
-пробел с перетаскиванием — панорама.
+On desktop: wheel pans, `Ctrl`/`Cmd` with the wheel zooms, middle button or space plus drag
+pans.
 
-Холсту задаётся `touch-action: none`, иначе браузер перехватит жесты под скролл
-и собственный зум страницы.
+The canvas gets `touch-action: none`, otherwise the browser intercepts the gestures for
+scrolling and its own page zoom.
 
 ```ts
 interface Tool {
@@ -371,21 +381,21 @@ interface Tool {
 type ToolContext = { scene: Scene; brush: Emoji; recorder: StrokeRecorder }
 ```
 
-Реализации в этой итерации: `brush` (пишет текущий эмодзи) и `eraser` (стирает).
-Ластик — самостоятельный инструмент, а не «кисть, рисующая филлером»: понятия «режим
-стирания» в новой модели нет.
+Implementations in this iteration: `brush` (writes the current emoji) and `eraser` (erases).
+The eraser is its own tool, not "a brush that paints the filler": there's no concept of an
+"erasing mode" in the new model.
 
-Инструмент не работает с историей напрямую: он пишет изменения через `recorder`. После
-`onUp` фиксацию выполняет `Editor` — вызывает `recorder.commit(...)` и, если мазок что-то
-изменил, передаёт операцию с инверсией в `History.commit`. Так каждый мазок становится
-одним шагом отмены, а инструментам не нужно знать об истории.
+A tool doesn't touch history directly: it writes changes through `recorder`. After `onUp`,
+the `Editor` performs the commit, calling `recorder.commit(...)` and, if the stroke changed
+anything, handing the operation with its inverse to `History.commit`. That way every stroke
+becomes a single undo step, and tools don't need to know anything about history.
 
-Линия, прямоугольник и заливка позже добавляются как новые реализации `Tool`, без правок
-ядра и рендера.
+Line, rectangle, and fill are added later as new `Tool` implementations, without touching
+the core or the renderer.
 
 ## editor/Editor.ts
 
-Фасад, собирающий слои и владеющий их жизненным циклом.
+A facade that assembles the layers and owns their lifecycle.
 
 ```ts
 class Editor {
@@ -405,74 +415,74 @@ class Editor {
 }
 ```
 
-`subscribe` и `getSnapshot` рассчитаны на `useSyncExternalStore` — это устраняет
-рассинхронизацию React-состояния с состоянием движка, из-за которой в текущем коде
-статус стирания дублируется колбэком.
+`subscribe` and `getSnapshot` are built for `useSyncExternalStore`, which eliminates the
+React-state-versus-engine-state desync that currently causes the erasing status to be
+duplicated through a callback.
 
-`destroy` снимает всё, что заводит конструктор.
+`destroy` tears down everything the constructor sets up.
 
-## React-оболочка
+## React shell
 
-Компоненты остаются тонкими: панель инструментов, кнопки, пикер эмодзи. Добавляются
-кнопки undo/redo с блокировкой по `canUndo`/`canRedo`.
+Components stay thin: toolbar, buttons, emoji picker. Undo/redo buttons are added, disabled
+according to `canUndo`/`canRedo`.
 
-- `useEditor(containerRef)` создаёт `Editor` один раз, устойчив к StrictMode, корректно
-  вызывает `destroy` при размонтировании.
-- Слушатель `emoji-click` у пикера снимается при размонтировании; отладочный `console.log`
-  удаляется.
-- `@ts-ignore` над `<emoji-picker>` заменяется объявлением кастомного элемента в типах.
-- `${isSelected && '...'}` в `Tool.tsx` заменяется корректным построением списка классов.
+- `useEditor(containerRef)` creates the `Editor` once, is StrictMode-safe, and correctly
+  calls `destroy` on unmount.
+- The picker's `emoji-click` listener is removed on unmount; the stray debug `console.log`
+  is removed.
+- The `@ts-ignore` over `<emoji-picker>` is replaced with a typed custom-element
+  declaration.
+- The `${isSelected && '...'}` in `Tool.tsx` is replaced with correctly built class list
+  construction.
 
-Внешний вид сохраняется: та же вёрстка, те же классы Tailwind, плюс кнопки undo, redo
-и сброса вида.
+The look stays the same: same markup, same Tailwind classes, plus undo, redo, and reset-view
+buttons.
 
-## Мобильные устройства
+## Mobile devices
 
-Мобильная версия равноправна с десктопной, а не терпима.
+The mobile version is a first-class citizen, not merely tolerated.
 
-- **Холст занимает доступную высоту экрана**, а не фиксированное число клеток: размер
-  берётся у контейнера через `ResizeObserver`. Это уже следует из решения делать холст
-  размером с окно.
-- **Панель инструментов** остаётся прижатой к низу и не перекрывается пикером эмодзи;
-  кнопки не мельче 44 логических пикселей.
-- **Жесты** описаны выше: рисование одним пальцем, навигация двумя.
-- **`touch-action: none`** на холсте; страница не должна прокручиваться или зумиться
-  во время рисования.
-- **`devicePixelRatio` до 3** учитывается при создании холста и растеризации глифов.
-  Экран 400×800 CSS-пикселей при DPR 3 — это 2.9 млн физических пикселей за кадр, поэтому
-  уровни детализации и отсечение невидимого на мобильных критичнее, чем на десктопе.
-- **Кнопки undo и redo** особенно нужны здесь: промахнуться пальцем легко.
+- **The canvas takes up the available screen height**, not a fixed number of cells: size
+  comes from the container via `ResizeObserver`. This already follows from making the
+  canvas the size of the window.
+- **The toolbar** stays pinned to the bottom and isn't covered by the emoji picker; buttons
+  are no smaller than 44 logical pixels.
+- **Gestures** as described above: one-finger drawing, two-finger navigation.
+- **`touch-action: none`** on the canvas; the page must not scroll or zoom during drawing.
+- **`devicePixelRatio` up to 3** is accounted for when creating the canvas and rasterizing
+  glyphs. A 400×800 CSS-pixel screen at DPR 3 is 2.9 million physical pixels per frame, so
+  levels of detail and culling the invisible matter more on mobile than on desktop.
+- **Undo and redo buttons** are especially needed here: it's easy to miss with a finger.
 
-Проверка — на реальном устройстве, не только в эмуляции размера окна: `devicePixelRatio`,
-поведение жестов и производительность в эмуляторе не воспроизводятся достоверно.
+Verification happens on a real device, not just in window-size emulation: `devicePixelRatio`,
+gesture behavior, and performance aren't reliably reproduced in an emulator.
 
-## Производительность
+## Performance
 
-Целевой бюджет — **60 кадров в секунду, то есть 16.7 мс на кадр**, на мобильных устройствах
-в том числе.
+The target budget is **60 frames per second, i.e. 16.7ms per frame**, on mobile devices too.
 
-Что обеспечивает бюджет:
+What delivers the budget:
 
-1. **Отсечение невидимого.** Рисуется только диапазон `visibleBounds`, поэтому стоимость
-   кадра определяется размером окна, а не размером рисунка. Сцена на миллион клеток
-   рисуется столько же, сколько сцена на сотню.
-2. **Атлас глифов.** `drawImage` из готового буфера вместо `fillText` с подбором шрифта
-   и растеризацией цветного глифа на каждом кадре.
-3. **Ступени масштаба атласа.** Плавный щипок не вызывает перерастеризации.
-4. **Уровни детализации.** Отдаление не превращается в десятки тысяч отрисовок глифов.
-5. **Склейка через `requestAnimationFrame`.** События указателя приходят чаще кадров;
-   отрисовка происходит один раз за кадр по флагу «грязно».
-6. **Отсутствие аллокаций в цикле отрисовки.** Обход видимых клеток не создаёт объектов
-   и замыканий; координаты передаются числами.
+1. **Culling the invisible.** Only the `visibleBounds` range is drawn, so frame cost is
+   determined by window size, not drawing size. A scene with a million cells renders in the
+   same time as one with a hundred.
+2. **Glyph atlas.** `drawImage` from a ready buffer instead of `fillText` with font matching
+   and color-glyph rasterization every frame.
+3. **Atlas zoom steps.** A smooth pinch doesn't trigger re-rasterization.
+4. **Levels of detail.** Zooming out doesn't turn into tens of thousands of glyph draws.
+5. **Coalescing through `requestAnimationFrame`.** Pointer events arrive more often than
+   frames; drawing happens once per frame, gated by a "dirty" flag.
+6. **No allocations in the draw loop.** Walking the visible cells creates no objects or
+   closures; coordinates are passed as numbers.
 
-Бюджет проверяется, а не декларируется: в browser-проекте заводятся бенчмарки Vitest,
-измеряющие время одного кадра при заполнении экрана на масштабах 1× и минимальном,
-и время полного мазка через весь экран. Пороги фиксируются после первых замеров на
-реальном железе; регрессия в бенчмарке — повод разбираться, а не подтягивать порог.
+The budget is verified, not just declared: the browser project gets Vitest benchmarks
+measuring the time for one frame with a full screen at 1× zoom and at minimum zoom, and the
+time for a full-screen stroke. Thresholds get fixed after the first measurements on real
+hardware; a benchmark regression is a reason to investigate, not to raise the threshold.
 
-## Обновление зависимостей
+## Dependency updates
 
-| Пакет | Было | Станет |
+| Package | Was | Becomes |
 |---|---|---|
 | react, react-dom | 18.2 | 19.2 |
 | vite | 4.4 | 8.2 |
@@ -486,133 +496,130 @@ class Editor {
 | prettier | 3.0 | 3.9 |
 | emoji-picker-element | 1.18 | 1.29 |
 
-Структурные следствия:
+Structural consequences:
 
-- `.eslintrc.cjs` → `eslint.config.js` (flat config). Правила сохраняются по смыслу:
-  `perfectionist` в режиме natural, отключённый `perfectionist/sort-classes`,
+- `.eslintrc.cjs` → `eslint.config.js` (flat config). Rules stay the same in spirit:
+  `perfectionist` in natural mode, `perfectionist/sort-classes` disabled,
   `react/boolean-prop-naming`.
-- `eslint-plugin-import` и `eslint-import-resolver-typescript` удаляются: сортировку
-  импортов делает `perfectionist`, разрешение путей — TypeScript, а поддержка flat config
-  у этого плагина исторически проблемная. Единственное использовавшееся правило,
-  `import/newline-after-import`, относится к форматированию и остаётся за Prettier.
-- Tailwind 4 конфигурируется из CSS. `tailwind.config.js` и `postcss.config.js`
-  удаляются, подключается плагин Tailwind для Vite, директивы в `index.css` заменяются
-  на импорт Tailwind.
-- Prettier сохраняет текущие настройки: без точек с запятой, одинарные кавычки, ширина 80.
+- `eslint-plugin-import` and `eslint-import-resolver-typescript` are removed: import
+  sorting is handled by `perfectionist`, path resolution by TypeScript, and this plugin's
+  flat-config support has historically been troublesome. The one rule that was actually
+  used, `import/newline-after-import`, is a formatting concern and stays with Prettier.
+- Tailwind 4 is configured from CSS. `tailwind.config.js` and `postcss.config.js` are
+  removed, the Tailwind plugin for Vite is wired in, and the directives in `index.css` are
+  replaced with a Tailwind import.
+- Prettier keeps its current settings: no semicolons, single quotes, 80-column width.
 
 CI (`.github/workflows/vite.yaml`): `npm install` → `npm ci`, Node 18 → 24, `actions/*`
-до актуальных версий, добавляются шаги `lint` и `test`. Публикация на GitHub Pages
-и `base: '/emojicanvas/'` не меняются.
+bumped to current versions, `lint` and `test` steps added. Publishing to GitHub Pages and
+`base: '/emojicanvas/'` don't change.
 
-## Тесты
+## Tests
 
-Vitest 5, два проекта в одном конфиге.
+Vitest 5, two projects in one config.
 
-**Проект node** — `core` и `tools`, чистые функции без DOM:
+**The node project** — `core` and `tools`, pure functions with no DOM:
 
-- `scene` — запись, стирание, отрицательные координаты, `size`, `entries`, `bounds`
-  на пустой сцене и на одной клетке, сериализация с обратным разбором;
-- `operations` — применение, инверсия, обратимость (применить и откатить → исходное
-  состояние), `StrokeRecorder` не дублирует запись прежнего значения при повторном
-  касании клетки, возвращает `null` на пустом мазке и полностью восстанавливает сцену
-  при `rollback`;
-- `history` — undo, redo, очистка redo после новой операции, соблюдение лимита;
-- `camera` — round-trip экран↔клетка, границы клеток, отрицательная зона, `visibleBounds`
-  при zoom = 1 и zoom ≠ 1, ограничение масштаба диапазоном, сохранение опорной точки
-  при масштабировании;
-- `line` — прямые по осям, диагонали, произвольный наклон, совпадающие точки,
-  направление в обе стороны;
-- `export/text` — обрезка пустых краёв, филлер внутри границ, пустая сцена,
-  одна клетка и **прямоугольная (неквадратная) область** — тест, прямо фиксирующий
-  дефект 1;
-- `tools` — последовательность точек даёт ожидаемый набор изменений; ластик удаляет.
+- `scene` — writing, erasing, negative coordinates, `size`, `entries`, `bounds` on an empty
+  scene and on a single cell, serialize-then-parse round trip;
+- `operations` — applying, inverting, reversibility (apply then roll back → original state),
+  `StrokeRecorder` doesn't duplicate recording a cell's previous value on repeated touches,
+  returns `null` for an empty stroke, and fully restores the scene on `rollback`;
+- `history` — undo, redo, redo cleared after a new operation, the limit is respected;
+- `camera` — round trip screen↔cell, cell bounds, negative range, `visibleBounds` at
+  zoom = 1 and zoom ≠ 1, zoom clamped to its range, anchor point preserved while zooming;
+- `line` — axis-aligned lines, diagonals, arbitrary slopes, coincident points, direction in
+  both directions;
+- `export/text` — trimming empty edges, filler within bounds, empty scene, a single cell,
+  and a **rectangular (non-square) area** — a test that directly pins down defect 1;
+- `tools` — a sequence of points yields the expected set of changes; the eraser removes.
 
-**Проект browser** (`@vitest/browser` с провайдером Playwright) — то, что требует
-настоящего браузера:
+**The browser project** (`@vitest/browser` with the Playwright provider) — things that need
+an actual browser:
 
-- `glyphAtlas` — растеризация даёт непустой буфер; глиф центрирован (проверка по
-  распределению непрозрачных пикселей); повторный запрос не растеризует заново; запрос
-  произвольного размера клетки попадает в ближайшую ступень; `averageColor` даёт
-  осмысленный цвет (красный для `❤️`);
-- `renderScene` — сетка нарисована, клетка со значением отличается от пустой,
-  перерисовка после стирания не оставляет следов, переключение уровня детализации
-  на пороге размера клетки;
-- `pointer` — клик рисует одну клетку, протаскивание рисует связную линию без разрывов,
-  выход за границу холста не срывает мазок, два указателя дают панораму и масштаб вместо
-  рисования, появление второго пальца откатывает начатый мазок, слушатели снимаются;
-- компоненты и хуки — переключение инструментов, undo/redo, копирование в буфер,
-  снятие слушателей при размонтировании (тест на дефект 6);
-- `Editor` — полный цикл: рисование, undo, redo, очистка, навигация, `destroy` без утечек.
+- `glyphAtlas` — rasterization yields a non-empty buffer; the glyph is centered (checked via
+  the distribution of opaque pixels); a repeat request doesn't re-rasterize; a request for an
+  arbitrary cell size lands on the nearest step; `averageColor` gives a sensible color (red
+  for `❤️`);
+- `renderScene` — the grid is drawn; a cell with a value differs from an empty one;
+  redrawing after erasing leaves no trace; switching level of detail at the cell-size
+  threshold;
+- `pointer` — a click draws a single cell, dragging draws a connected line with no gaps,
+  leaving the canvas bounds doesn't break the stroke, two pointers give pan and zoom instead
+  of drawing, a second finger appearing rolls back a stroke already in progress, listeners
+  are removed;
+- components and hooks — switching tools, undo/redo, copy to clipboard, listeners removed
+  on unmount (a test for defect 6);
+- `Editor` — a full cycle: drawing, undo, redo, clear, navigation, `destroy` with no leaks.
 
-**Бенчмарки** (`vitest bench`, browser-проект): время кадра при заполненном экране на
-масштабе 1× и на минимальном, время мазка через весь экран.
+**Benchmarks** (`vitest bench`, browser project): frame time with a full screen at 1× zoom
+and at minimum zoom, time for a full-screen stroke.
 
-`toMatchScreenshot` доступен в browser-проекте, но эталоны в этой итерации не заводятся:
-предстоит редизайн, эталоны устареют на первой же его итерации. Инфраструктура остаётся
-готовой к включению.
+`toMatchScreenshot` is available in the browser project, but no baselines are set up in this
+iteration: a redesign is coming, and the baselines would go stale on its very first
+iteration. The infrastructure stays ready to be turned on.
 
-## Порядок работ
+## Order of work
 
-1. **Тулчейн.** Обновление зависимостей, flat config, миграция Tailwind, обновление CI.
-   Код приложения не трогается, кроме правок, без которых не собирается. Проверка:
-   сборка, линт, приложение работает как раньше.
-2. **Тестовая инфраструктура.** Vitest с двумя проектами, по одному smoke-тесту в каждом.
-3. **Ядро.** `scene`, `operations`, `history`, `camera`, `line`, `export/text` — через
-   тесты вперёд.
-4. **Рендер.** `theme`, `glyphAtlas`, `renderScene`, уровни детализации — с browser-тестами.
-5. **Ввод и инструменты.** `pointer` с жестами, `brush`, `eraser`.
-6. **Editor и UI.** Фасад, перевод React-оболочки, кнопки undo/redo и сброса вида,
-   мобильная вёрстка.
-7. **Производительность.** Бенчмарки, замеры на реальном мобильном устройстве, уточнение
-   порогов уровней детализации.
-8. **Уборка.** Удаление старого `lib/EmojiCanvas.ts` и осиротевших хуков, обновление
-   README и CLAUDE.md.
+1. **Toolchain.** Dependency updates, flat config, Tailwind migration, CI update.
+   Application code isn't touched, except for edits needed to make it build. Verification:
+   build, lint, the app works as before.
+2. **Test infrastructure.** Vitest with two projects, one smoke test in each.
+3. **Core.** `scene`, `operations`, `history`, `camera`, `line`, `export/text`, test-first.
+4. **Rendering.** `theme`, `glyphAtlas`, `renderScene`, levels of detail, with browser tests.
+5. **Input and tools.** `pointer` with gestures, `brush`, `eraser`.
+6. **Editor and UI.** The facade, porting the React shell, undo/redo and reset-view buttons,
+   mobile layout.
+7. **Performance.** Benchmarks, measurements on a real mobile device, refining the
+   level-of-detail thresholds.
+8. **Cleanup.** Removing the old `lib/EmojiCanvas.ts` and orphaned hooks, updating the
+   README and CLAUDE.md.
 
-Обновление зависимостей идёт до рефакторинга сознательно: так у любой поломки один адрес.
-Если смешать, причина сбоя станет неоднозначной.
+Updating dependencies happens before the refactor deliberately: that way any breakage has
+one address. Mixing the two would make the cause of a failure ambiguous.
 
-## Риски
+## Risks
 
-- **TypeScript 7** — новый нативный компилятор. Совместимость с `typescript-eslint`
-  проверяется на шаге 1. Если не работает — откат на TypeScript 5.9, остальной план
-  не меняется.
-  - *Итог проверки (Task 3, 2026-09-07):* `tsc --noEmit` и `npm run build` на
-    TypeScript 7.0.2 прошли без ошибок, но `npm run lint` упал — `@typescript-eslint/parser`
-    5.61.0 не смог загрузить парсер (`TypeError: Cannot read properties of undefined
-    (reading 'BarBarToken')` в `typescript-estree`). Поскольку миграция ESLint —
-    отдельная задача (Task 4), выполнен откат на `typescript@^5.9.3`, на котором
-    `tsc`, `build` и `lint` проходят чисто. Решение о TypeScript 7 стоит пересмотреть
-    после обновления `typescript-eslint` в Task 4.
-  - *Повторная проверка (Task 4, 2026-09-07):* после миграции на ESLint 10 flat
-    config и `typescript-eslint@8.69.0` попытка повторена: `npm install -D
-    typescript@^7.0.0 --legacy-peer-deps`, затем `npm run build` и `npm run lint`.
-    `tsc` (v7.0.2) и `vite build` снова прошли без ошибок и без изменений в
-    исходниках. `npm run lint` на этот раз упал не из-за краша парсера, а из-за
-    явной защиты в самом `typescript-eslint`: `Error: typescript-eslint does not
-    support TS 7.0.` с сообщением "Please see
+- **TypeScript 7** — the new native compiler. Compatibility with `typescript-eslint` is
+  checked at step 1. If it doesn't work, roll back to TypeScript 5.9; the rest of the plan
+  is unchanged.
+  - *Check result (Task 3, 2026-09-07):* `tsc --noEmit` and `npm run build` on
+    TypeScript 7.0.2 passed with no errors, but `npm run lint` failed:
+    `@typescript-eslint/parser` 5.61.0 couldn't load the parser
+    (`TypeError: Cannot read properties of undefined (reading 'BarBarToken')` in
+    `typescript-estree`). Since migrating ESLint is a separate task (Task 4), rolled back
+    to `typescript@^5.9.3`, on which `tsc`, `build` and `lint` pass cleanly. The decision on
+    TypeScript 7 should be revisited after `typescript-eslint` is updated in Task 4.
+  - *Recheck (Task 4, 2026-09-07):* after migrating to ESLint 10 flat config and
+    `typescript-eslint@8.69.0`, tried again: `npm install -D typescript@^7.0.0
+    --legacy-peer-deps`, then `npm run build` and `npm run lint`. `tsc` (v7.0.2) and
+    `vite build` again passed with no errors and no source changes. This time
+    `npm run lint` failed not from a parser crash but from an explicit guard in
+    `typescript-eslint` itself: `Error: typescript-eslint does not support TS 7.0.` with the
+    message "Please see
     https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0
     to run typescript-eslint using the TS 6 API. See also
-    https://github.com/typescript-eslint/typescript-eslint/issues/10940 for
-    tracking typescript-eslint's support for TS >=7.1". Это осознанный отказ
-    пакета работать с TS 7.0.x (issue #10940 отслеживает будущую поддержку TS
-    ≥7.1), а не случайная несовместимость версии парсера, как было в Task 3.
-    Выполнен откат на `typescript@^5.9.3` (`npm install -D typescript@^5.9.0
-    --legacy-peer-deps`), после которого `build` и `lint` снова проходят чисто.
-    Решение о TypeScript 7 стоит пересмотреть повторно, когда `typescript-eslint`
-    объявит поддержку TS ≥7.1 (см. issue #10940).
-- **Tailwind 4** — конфигурация переехала в CSS. Вёрстка простая, утилитарные классы
-  проекта стабильны между версиями, но внешний вид проверяется глазами после миграции.
-- **Vitest browser mode** требует установки браузеров Playwright, в том числе в CI —
-  это заметно удлиняет прогон. Если время CI станет проблемой, browser-проект
-  запускается отдельным шагом от node-проекта.
-- **Метрики глифов** (`actualBoundingBox*`) поддержаны современными браузерами, но
-  значения зависят от системного шрифта. Запасной вариант с центрированием по базовой
-  линии заложен в дизайн.
-- **Частота кадров на мобильных.** Основной риск для цели в 60 кадров — высокий
-  `devicePixelRatio` вместе с большим числом клеток на экране. Средства защиты заложены
-  (отсечение, атлас, уровни детализации), но проверяются замерами на шаге 7. Если порогов
-  окажется недостаточно, следующие рычаги — понижение разрешения отрисовки во время
-  жеста с доводкой после его окончания и кэширование отрисованных тайлов.
-- **Разделение жестов.** Отличить начало рисования от начала щипка мгновенно нельзя:
-  второй палец опускается с задержкой. Отсюда требование к `StrokeRecorder` уметь
-  откатывать начатый мазок; корректность этого поведения проверяется тестом.
+    https://github.com/typescript-eslint/typescript-eslint/issues/10940 for tracking
+    typescript-eslint's support for TS >=7.1". This is a deliberate refusal by the package
+    to work with TS 7.0.x (issue #10940 tracks future support for TS ≥7.1), not an
+    incidental parser-version incompatibility as in Task 3. Rolled back to
+    `typescript@^5.9.3` (`npm install -D typescript@^5.9.0 --legacy-peer-deps`), after which
+    `build` and `lint` pass cleanly again. The decision on TypeScript 7 should be revisited
+    once again once `typescript-eslint` announces support for TS ≥7.1 (see issue #10940).
+- **Tailwind 4** — configuration moved into CSS. The layout is simple and the project's
+  utility classes are stable across versions, but the look is checked visually after the
+  migration.
+- **Vitest browser mode** requires installing Playwright browsers, including in CI, which
+  noticeably lengthens the run. If CI time becomes a problem, the browser project runs as a
+  separate step from the node project.
+- **Glyph metrics** (`actualBoundingBox*`) are supported by modern browsers, but the values
+  depend on the system font. A fallback centered on the baseline is built into the design.
+- **Frame rate on mobile.** The main risk to the 60fps target is a high `devicePixelRatio`
+  combined with a large number of on-screen cells. Safeguards are built in (culling, the
+  atlas, levels of detail), but are verified by measurements in step 7. If the thresholds
+  turn out not to be enough, the next levers are lowering rendering resolution during a
+  gesture with a refinement pass after it ends, and caching rendered tiles.
+- **Gesture separation.** Telling the start of drawing apart from the start of a pinch can't
+  happen instantly: a second finger comes down with a delay. Hence the requirement for
+  `StrokeRecorder` to be able to roll back a stroke already begun; the correctness of this
+  behavior is checked by a test.

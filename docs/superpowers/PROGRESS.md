@@ -1,102 +1,106 @@
-# Ход работ по фундаменту
+# Foundation work in progress
 
-Журнал состояния между сессиями. Читать вместе со спецификацией
-`specs/2026-09-07-foundation-design.md` — она остаётся авторитетом по замыслу.
+Cross-session status log. Read together with the spec
+`specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Обновлено: 2026-09-07.
+Updated: 2026-09-07.
 
-## Где мы
+## Where we are
 
-Вся работа идёт в одной ветке **`foundation`** (21 коммит), которая будет слита
-в `main` локально, когда будут закончены все три плана. Ничего не запушено,
-`main` не тронут.
+All work is happening on a single branch, **`foundation`** (21 commits), which will
+be merged into `main` locally once all three plans are done. Nothing has been
+pushed; `main` is untouched.
 
-| План | Состояние |
+| Plan | Status |
 |---|---|
-| 1. Тулчейн и тестовая инфраструктура (`plans/2026-09-07-toolchain-and-tests.md`) | **Выполнен**, ревью пройдено |
-| 2. Ядро движка | **План не написан** — следующий шаг |
-| 3. Рендер, ввод, интеграция, производительность | План не написан |
+| 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, review passed |
+| 2. Engine core | **Plan not written yet** — next step |
+| 3. Rendering, input, integration, performance | Plan not written |
 
-## Что уже работает
+## What already works
 
-`npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — все
-зелёные с чистого состояния. Приложение выглядит и ведёт себя ровно как до начала
-работ: сравнивалось со скриншотом-эталоном, включая мобильную раскладку.
+`npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all
+green from a clean state. The app looks and behaves exactly as it did before the
+work started: compared against a baseline screenshot, including the mobile layout.
 
-Тулчейн: React 19.2, Vite 8.2, TypeScript 5.9.3, ESLint 10.10 (flat config,
-`eslint.config.js`), Tailwind 4.3 (конфигурация в `src/index.css`), Prettier 3.9,
+Toolchain: React 19.2, Vite 8.2, TypeScript 5.9.3, ESLint 10.10 (flat config,
+`eslint.config.js`), Tailwind 4.3 (configured in `src/index.css`), Prettier 3.9,
 Vitest 5.
 
-Тесты: два проекта в `vitest.config.ts`, всего 7 тестов.
-- `node` — `src/{core,tools}/**/*.test.ts`, чистая логика без DOM;
-- `browser` — всё остальное под `src/`, реальный Chromium через Playwright.
-Шаблоны строго дополняют друг друга: файл не может выпасть из обоих. Проверено.
+Tests: two projects in `vitest.config.ts`, 7 tests total.
+- `node` — `src/{core,tools}/**/*.test.ts`, pure logic, no DOM;
+- `browser` — everything else under `src/`, real Chromium via Playwright.
+The patterns are strict complements: a file can't fall through both. Verified.
 
-CI (`.github/workflows/vite.yaml`): job `test` на push и pull request, job `deploy`
-с `needs: test`, только для push в `main` и ручного запуска. Публикация на Pages
-недостижима в обход линта и тестов.
+CI (`.github/workflows/vite.yaml`): a `test` job on push and pull request, a
+`deploy` job with `needs: test`, only for pushes to `main` and manual runs.
+Publishing to Pages is unreachable without passing lint and tests.
 
-Готовые модули, на которых строится план 2:
+Modules ready for plan 2 to build on:
 - `src/core/types.ts` — `Cell`, `CellBounds`, `Emoji`;
-- `src/core/line.ts` — `cellsBetween(from, to): Cell[]`, Брезенхем, обе крайние
-  точки включаются, координаты округляются вниз.
+- `src/core/line.ts` — `cellsBetween(from, to): Cell[]`, Bresenham, both endpoints
+  included, coordinates rounded down.
 
-## Принятые решения, которые не надо пересматривать
+## Settled decisions
 
-**TypeScript остаётся на 5.9.3.** Компилятор 7.0 собирает проект чисто, без единой
-правки в коде. Блокирует `typescript-eslint`: версия 8.69 содержит явную проверку,
-отклоняющую TS 7.0, с обещанием поддержки начиная с 7.1. Пробовали дважды, оба раза
-с одинаковым результатом. Вернуться к вопросу можно после выхода поддержки.
+**TypeScript stays on 5.9.3.** Compiler 7.0 builds the project cleanly, without a
+single code change. It's blocked by `typescript-eslint`: version 8.69 has an
+explicit check that rejects TS 7.0, with support promised starting at 7.1. Tried
+twice, same result both times. Revisit once that support ships.
 
-**Peer-конфликт `eslint-plugin-react` с ESLint 10** решён узким `overrides` в
-`package.json`, а не глобальным `legacy-peer-deps`. Не заменять на `.npmrc` —
-это ослабило бы проверку зависимостей на весь репозиторий.
+**The peer conflict between `eslint-plugin-react` and ESLint 10** is resolved with
+a narrow `overrides` in `package.json`, not a blanket `legacy-peer-deps`. Don't
+replace it with `.npmrc` — that would weaken dependency checking across the whole
+repo.
 
-**Цвет рамки кнопки задан явно** (`border-gray-200` в `Tool.tsx`), потому что
-Tailwind 4 сменил умолчание на `currentColor`. Точечно, а не глобальным правилом.
+**The button border color is set explicitly** (`border-gray-200` in `Tool.tsx`)
+because Tailwind 4 changed the default to `currentColor`. A point fix, not a
+global rule.
 
-**Весь код — на английском.** Планы и spec написаны по-русски, но ничто из них
-не копируется в код дословно. Это уже нарушалось однажды: имена тестов попали в
-репозиторий по-русски прямо из плана.
+**All code is in English.** The plans and spec are written in Russian, but nothing
+from them is copied into code verbatim. This was already violated once: test names
+made it into the repo in Russian, straight from the plan.
 
-## Требования к будущим планам
+## Requirements for later plans
 
-- **План 3, обработка указателя:** экранные координаты обязаны приводиться к целым
-  клеткам до вызова `cellsBetween`. Сама функция теперь защищена округлением, но
-  полагаться на эту защиту как на штатный путь не следует.
-- **План 3, рендер:** формула центровки глифа из spec проверена на реальных метриках
-  Chromium (`width` 20.0098, `actualBoundingBoxAscent` 21.5186,
-  `actualBoundingBoxLeft` −0.4395, `actualBoundingBoxRight` 19.6436). Метрики
-  ненулевые, подход рабочий.
-- **План 2, ядро:** писать в node-проект Vitest, он уже настроен и быстрый.
+- **Plan 3, pointer handling:** screen coordinates must be snapped to whole cells
+  before calling `cellsBetween`. The function itself is now protected by rounding,
+  but that protection shouldn't be relied on as the normal path.
+- **Plan 3, rendering:** the glyph-centering formula from the spec has been
+  verified against real Chromium metrics (`width` 20.0098,
+  `actualBoundingBoxAscent` 21.5186, `actualBoundingBoxLeft` −0.4395,
+  `actualBoundingBoxRight` 19.6436). The metrics are non-zero, the approach works.
+- **Plan 2, core:** write into the node Vitest project — it's already set up and
+  fast.
 
-## Отложенные замечания
+## Deferred findings
 
-Ни одно не блокирует работу. Разобрать перед слиянием `foundation` в `main`.
+None of these block work. Address them before merging `foundation` into `main`.
 
-1. Бандл вырос с 192.52 kB (64.11 gzip) до 234.83 kB (75.56 gzip) после React 19
-   и Vite 8. Ограничения на размер нигде не задавались.
-2. `settings.react.version` в `eslint.config.js` захардкожен как `'19.2'`:
-   автоопределение у `eslint-plugin-react` падает на ESLint 10. Устареет молча
-   при следующем мажоре React.
-3. Корневая запись `packages[""]` в `package-lock.json` не отражает поле
-   `overrides`. `npm ci` работает; npm перезапишет при следующей записи.
-4. Цвет рамки кнопки — литерал, а не токен темы. Токены появятся в
-   `render/theme.ts` в плане 3.
-5. `.px-1` остаётся в собранном CSS: класс приходит из закомментированного блока
-   `<dialog>` в `src/components/App/App.tsx`. Исчезнет вместе с переписыванием
-   компонента в плане 3.
-6. Две уязвимости высокой важности (ReDoS в `brace-expansion` и `minimatch`) в
-   транзитивных **dev**-зависимостях. В бандл не попадают: `npm audit --omit=dev`
-   даёт ноль. `npm audit fix` предлагает исправление.
-7. `tsconfig.node.json` включает только `vite.config.ts` — `vitest.config.ts` не
-   проверяется типами ничем.
-8. `.prettierrc` содержит устаревший `jsxBracketSameLine`; Prettier 3.9 печатает
-   предупреждение при каждом запуске.
+1. The bundle grew from 192.52 kB (64.11 gzip) to 234.83 kB (75.56 gzip) after
+   React 19 and Vite 8. No size limits were set anywhere.
+2. `settings.react.version` in `eslint.config.js` is hardcoded as `'19.2'`:
+   `eslint-plugin-react`'s auto-detection fails on ESLint 10. It will go stale
+   silently at the next React major.
+3. The root `packages[""]` entry in `package-lock.json` doesn't reflect the
+   `overrides` field. `npm ci` works; npm will rewrite it on the next write.
+4. The button border color is a literal, not a theme token. Tokens will land in
+   `render/theme.ts` in plan 3.
+5. `.px-1` remains in the built CSS: the class comes from a commented-out
+   `<dialog>` block in `src/components/App/App.tsx`. It will disappear once that
+   component is rewritten in plan 3.
+6. Two high-severity vulnerabilities (ReDoS in `brace-expansion` and `minimatch`)
+   in transitive **dev** dependencies. They don't reach the bundle:
+   `npm audit --omit=dev` reports zero. `npm audit fix` offers a fix.
+7. `tsconfig.node.json` only includes `vite.config.ts` — nothing type-checks
+   `vitest.config.ts`.
+8. `.prettierrc` contains the deprecated `jsxBracketSameLine`; Prettier 3.9 prints
+   a warning on every run.
 
-## Как продолжить
+## How to continue
 
-Следующий шаг — написать план 2 (ядро движка) по разделам spec «Модель»,
-`core/scene.ts`, `core/operations.ts`, `core/history.ts`, `core/camera.ts`,
-`core/export/text.ts`, и по разделу «Тесты» в части node-проекта. Затем исполнять
-его тем же способом: по задаче за раз, с ревью между ними.
+The next step is to write plan 2 (engine core), covering the spec's "Model"
+section, `core/scene.ts`, `core/operations.ts`, `core/history.ts`,
+`core/camera.ts`, `core/export/text.ts`, and the node-project part of the "Tests"
+section. Then execute it the same way: one task at a time, with review between
+them.

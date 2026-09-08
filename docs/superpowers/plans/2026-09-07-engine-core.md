@@ -1,50 +1,50 @@
-# Ядро движка — план реализации
+# Engine Core — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Построить чистое ядро редактора — сцену, обратимые операции, историю отмены,
-камеру, текстовый экспорт и инструменты — полностью покрытое юнит-тестами и не знающее
-ни про DOM, ни про canvas, ни про React.
+**Goal:** Build a clean editor core — a scene, reversible operations, an undo history,
+a camera, text export and tools — fully covered by unit tests and knowing nothing
+about the DOM, canvas or React.
 
-**Architecture:** Разреженное хранилище нарисованных клеток на бесконечном поле;
-единственный путь изменения — операции, каждая из которых умеет строить свою инверсию;
-поверх них стек отмены. Камера отвечает за перевод экранных координат в координаты клеток
-и обратно. Инструменты превращают события указателя в изменения сцены. Ни один модуль
-этого плана не импортирует ничего из браузера.
+**Architecture:** Sparse storage of drawn cells on an unbounded field; the only way to
+change it is through operations, each able to build its own inverse; an undo stack sits
+on top of them. The camera translates screen coordinates to cell coordinates and back.
+Tools turn pointer events into scene changes. No module in this plan imports anything
+from the browser.
 
-**Tech Stack:** TypeScript 5.9, Vitest 5 (проект `node`, окружение без DOM).
+**Tech Stack:** TypeScript 5.9, Vitest 5 (the `node` project, an environment without a DOM).
 
 **Spec:** `docs/superpowers/specs/2026-09-07-foundation-design.md`
 
-**Состояние работ:** `docs/superpowers/PROGRESS.md`
+**Status:** `docs/superpowers/PROGRESS.md`
 
 ## Global Constraints
 
-- **Весь код на английском** — идентификаторы, комментарии, имена тестов, сообщения
-  коммитов. Этот план написан по-русски; ничто из него не копируется в код дословно,
-  кроме блоков кода, которые уже написаны по-английски.
-- Ветка **`foundation`**. Коммиты разрешены, пуш запрещён, `main` не трогать.
-- `npm run lint` проходит с `--max-warnings 0`; `npm test` и `npm run build` проходят.
-- Prettier: без точек с запятой, одинарные кавычки, ширина 80, `arrowParens: 'avoid'`,
+- **Everything in English** — identifiers, comments, test names, commit messages.
+  This plan is written in Russian; nothing from it is copied into code verbatim,
+  except the code blocks, which are already written in English.
+- Branch **`foundation`**. Commits are allowed, pushing is not; leave `main` alone.
+- `npm run lint` passes with `--max-warnings 0`; `npm test` and `npm run build` pass.
+- Prettier: no semicolons, single quotes, 80-column width, `arrowParens: 'avoid'`,
   `trailingComma: 'all'`.
-- `eslint-plugin-perfectionist` в режиме natural: ключи объектов и типов, члены
-  интерфейсов, импорты и экспорты сортируются естественным порядком. `sort-classes`
-  отключён, поэтому порядок членов класса свободный. Ключи объектов и типов в блоках
-  кода этого плана уже отсортированы — не переставляйте их.
-- **Порядок импортов в плане не выверен.** Правило сортировки импортов зависит от того,
-  как perfectionist группирует `import type` относительно обычных импортов, и проверить
-  это можно только запуском. Поэтому после создания каждого файла выполняйте
-  `npx eslint src --fix` и коммитьте уже исправленный вариант. Если автофиксом порядок
-  не исправляется, значит дело не в сортировке — читайте сообщение линтера.
-- **Ноль обращений к DOM и браузерным API** во всём, что создаётся этим планом. Никаких
-  `window`, `document`, `canvas`, `performance`. Тесты идут в node-проекте Vitest.
-- Не трогать `src/lib/EmojiCanvas.ts`, `src/hooks/`, `src/components/` — старый движок
-  живёт до плана 3, который его заменит. Приложение в браузере после этого плана
-  выглядит и работает ровно как сейчас.
-- Существующие файлы `src/core/types.ts` и `src/core/line.ts` уже написаны и
-  протестированы. Использовать их, не переписывать.
+- `eslint-plugin-perfectionist` in natural mode: object and type keys, interface
+  members, imports and exports are sorted in natural order. `sort-classes` is
+  disabled, so class member order is free-form. Object and type keys in this
+  plan's code blocks are already sorted — do not reorder them.
+- **Import order in the plan is not verified.** The import-sorting rule depends on
+  how perfectionist groups `import type` relative to regular imports, and that can
+  only be checked by actually running it. So after creating each file, run
+  `npx eslint src --fix` and commit the already-fixed result. If the autofix doesn't
+  fix the order, the problem isn't sorting — read the linter's message.
+- **Zero DOM or browser API calls** in anything this plan creates. No `window`,
+  `document`, `canvas`, `performance`. Tests run in Vitest's node project.
+- Do not touch `src/lib/EmojiCanvas.ts`, `src/hooks/`, `src/components/` — the old
+  engine stays alive until plan 3, which replaces it. The browser app looks and
+  works exactly as it does now once this plan is done.
+- The existing files `src/core/types.ts` and `src/core/line.ts` are already written
+  and tested. Use them; do not rewrite them.
 
-## Уже существующий контракт
+## Existing contract
 
 ```ts
 // src/core/types.ts
@@ -56,34 +56,34 @@ export type Emoji = string
 export function cellsBetween(from: Cell, to: Cell): Cell[]
 ```
 
-`cellsBetween` возвращает клетки на отрезке по Брезенхему, включая обе крайние точки,
-и округляет координаты вниз.
+`cellsBetween` returns the cells on a segment via Bresenham's algorithm, including
+both endpoints, and rounds coordinates down.
 
-## Структура файлов
+## File structure
 
-| Файл | Ответственность |
+| File | Responsibility |
 |---|---|
-| `src/core/scene.ts` | Разреженное хранилище нарисованных клеток, границы, сериализация |
-| `src/core/operations.ts` | Тип операции, применение, инверсия, накопитель мазка |
-| `src/core/history.ts` | Стек отмены и повтора поверх операций |
-| `src/core/camera.ts` | Экран ↔ клетки, масштаб, видимый диапазон |
-| `src/core/export/text.ts` | Сцена → текст с обрезкой по границам и филлером |
-| `src/tools/types.ts` | Интерфейс инструмента и его контекст |
-| `src/tools/brush.ts` | Инструмент «кисть» |
-| `src/tools/eraser.ts` | Инструмент «ластик» |
+| `src/core/scene.ts` | Sparse storage of drawn cells, bounds, serialisation |
+| `src/core/operations.ts` | Operation type, apply, invert, stroke recorder |
+| `src/core/history.ts` | Undo/redo stack on top of operations |
+| `src/core/camera.ts` | Screen ↔ cells, zoom, visible range |
+| `src/core/export/text.ts` | Scene → text, cropped to bounds, with the filler |
+| `src/tools/types.ts` | Tool interface and its context |
+| `src/tools/brush.ts` | The "brush" tool |
+| `src/tools/eraser.ts` | The "eraser" tool |
 
-Каждому файлу — свой файл тестов рядом, с суффиксом `.test.ts`.
+Each file gets its own test file alongside it, suffixed `.test.ts`.
 
 ---
 
-### Task 1: Scene — разреженное хранилище
+### Task 1: Scene — sparse storage
 
 **Files:**
 - Create: `src/core/scene.ts`
 - Test: `src/core/scene.test.ts`
 
 **Interfaces:**
-- Consumes: `Cell`, `CellBounds`, `Emoji` из `src/core/types.ts`
+- Consumes: `Cell`, `CellBounds`, `Emoji` from `src/core/types.ts`
 - Produces:
   ```ts
   export type SceneData = { cells: Record<string, Emoji> }
@@ -99,12 +99,12 @@ export function cellsBetween(from: Cell, to: Cell): Cell[]
     writeCell(x: number, y: number, value: Emoji | undefined): void
   }
   ```
-  `writeCell` — низкоуровневая запись, предназначенная только для `operations.ts`.
-  Остальной код читает сцену, но не пишет в неё напрямую.
+  `writeCell` is a low-level write meant only for `operations.ts`. Everything
+  else reads the scene but never writes to it directly.
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Write a failing test**
 
-Создать `src/core/scene.test.ts`:
+Create `src/core/scene.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -211,14 +211,14 @@ describe('Scene', () => {
 })
 ```
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./scene` не найден.
+Expected: FAIL — module `./scene` not found.
 
-- [ ] **Step 3: Реализовать Scene**
+- [ ] **Step 3: Implement Scene**
 
-Создать `src/core/scene.ts`:
+Create `src/core/scene.ts`:
 
 ```ts
 import type { Cell, CellBounds, Emoji } from './types'
@@ -325,15 +325,15 @@ export class Scene {
 }
 ```
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
-Expected: PASS — 7 прежних тестов плюс 10 новых.
+Expected: PASS — the 7 previous tests plus 10 new ones.
 
-- [ ] **Step 5: Проверить линт**
+- [ ] **Step 5: Check lint**
 
 Run: `npm run lint`
-Expected: проходит без предупреждений.
+Expected: passes with no warnings.
 
 - [ ] **Step 6: Commit**
 
@@ -344,14 +344,14 @@ git commit -m "feat: add sparse Scene storage for the unbounded grid"
 
 ---
 
-### Task 2: Operations — обратимые изменения
+### Task 2: Operations — reversible changes
 
 **Files:**
 - Create: `src/core/operations.ts`
 - Test: `src/core/operations.test.ts`
 
 **Interfaces:**
-- Consumes: `Scene` и его `writeCell`/`get` из `src/core/scene.ts`; `Emoji` из
+- Consumes: `Scene` and its `writeCell`/`get` from `src/core/scene.ts`; `Emoji` from
   `src/core/types.ts`
 - Produces:
   ```ts
@@ -367,11 +367,11 @@ git commit -m "feat: add sparse Scene storage for the unbounded grid"
     rollback(scene: Scene): void
   }
   ```
-  `invertOperation` читает состояние сцены **до** применения операции.
+  `invertOperation` reads the scene's state **before** the operation is applied.
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Write a failing test**
 
-Создать `src/core/operations.test.ts`:
+Create `src/core/operations.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -540,14 +540,14 @@ describe('StrokeRecorder', () => {
 })
 ```
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./operations` не найден.
+Expected: FAIL — module `./operations` not found.
 
-- [ ] **Step 3: Реализовать операции**
+- [ ] **Step 3: Implement the operations**
 
-Создать `src/core/operations.ts`:
+Create `src/core/operations.ts`:
 
 ```ts
 import type { Emoji } from './types'
@@ -654,19 +654,19 @@ export class StrokeRecorder {
 }
 ```
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
 Expected: PASS.
 
-Если тест «keeps the earliest previous value» не сошёлся, проверьте, что `before`
-записывается только при первом касании клетки (`if (!this.before.has(key))`), а
-`changes` перезаписывается каждый раз.
+If the "keeps the earliest previous value" test doesn't pass, check that `before`
+is written only on the first touch of a cell (`if (!this.before.has(key))`), while
+`changes` is overwritten on every touch.
 
-- [ ] **Step 5: Проверить линт**
+- [ ] **Step 5: Check lint**
 
 Run: `npm run lint`
-Expected: проходит.
+Expected: passes.
 
 - [ ] **Step 6: Commit**
 
@@ -677,14 +677,14 @@ git commit -m "feat: add reversible operations and stroke recorder"
 
 ---
 
-### Task 3: History — отмена и повтор
+### Task 3: History — undo and redo
 
 **Files:**
 - Create: `src/core/history.ts`
 - Test: `src/core/history.test.ts`
 
 **Interfaces:**
-- Consumes: `Operation`, `applyOperation` из `src/core/operations.ts`; `Scene`
+- Consumes: `Operation`, `applyOperation` from `src/core/operations.ts`; `Scene`
 - Produces:
   ```ts
   export const DEFAULT_HISTORY_LIMIT = 100
@@ -699,11 +699,11 @@ git commit -m "feat: add reversible operations and stroke recorder"
     undo(scene: Scene): boolean
   }
   ```
-  `commit` принимает операцию, которая **уже применена** к сцене.
+  `commit` takes an operation that has **already been applied** to the scene.
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Write a failing test**
 
-Создать `src/core/history.test.ts`:
+Create `src/core/history.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -835,14 +835,14 @@ describe('History', () => {
 })
 ```
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./history` не найден.
+Expected: FAIL — module `./history` not found.
 
-- [ ] **Step 3: Реализовать History**
+- [ ] **Step 3: Implement History**
 
-Создать `src/core/history.ts`:
+Create `src/core/history.ts`:
 
 ```ts
 import type { Operation } from './operations'
@@ -914,15 +914,15 @@ export class History {
 }
 ```
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 5: Проверить линт**
+- [ ] **Step 5: Check lint**
 
 Run: `npm run lint`
-Expected: проходит.
+Expected: passes.
 
 - [ ] **Step 6: Commit**
 
@@ -933,14 +933,14 @@ git commit -m "feat: add undo/redo history over operations"
 
 ---
 
-### Task 4: Camera — экран, клетки и масштаб
+### Task 4: Camera — screen, cells and zoom
 
 **Files:**
 - Create: `src/core/camera.ts`
 - Test: `src/core/camera.test.ts`
 
 **Interfaces:**
-- Consumes: `Cell`, `CellBounds` из `src/core/types.ts`
+- Consumes: `Cell`, `CellBounds` from `src/core/types.ts`
 - Produces:
   ```ts
   export type Camera = { offsetX: number; offsetY: number; zoom: number }
@@ -977,15 +977,15 @@ git commit -m "feat: add undo/redo history over operations"
   ): Camera
   ```
 
-**Координатная модель, которой обязана следовать реализация.** `offsetX`/`offsetY` —
-это координаты левого верхнего угла экрана в пикселях мира. Значит экранная точка `px`
-соответствует мировой `px + offsetX`, а номер клетки получается делением на текущий
-размер клетки и округлением вниз. Обратное преобразование даёт левый верхний угол
-клетки на экране.
+**The coordinate model the implementation must follow.** `offsetX`/`offsetY` are the
+world-pixel coordinates of the screen's top-left corner. So a screen point `px`
+corresponds to world pixel `px + offsetX`, and the cell number comes from dividing
+by the current cell size and rounding down. The reverse transform gives the top-left
+corner of the cell on screen.
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Write a failing test**
 
-Создать `src/core/camera.test.ts`:
+Create `src/core/camera.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1151,17 +1151,16 @@ describe('zoomAt', () => {
 })
 ```
 
-Обратите внимание: `zoomAt` использует `cellSizeAt` внутри теста, поэтому оба должны
-быть экспортированы.
+Note: `zoomAt` uses `cellSizeAt` inside the test, so both must be exported.
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./camera` не найден.
+Expected: FAIL — module `./camera` not found.
 
-- [ ] **Step 3: Реализовать камеру**
+- [ ] **Step 3: Implement the camera**
 
-Создать `src/core/camera.ts`:
+Create `src/core/camera.ts`:
 
 ```ts
 import type { Cell, CellBounds } from './types'
@@ -1266,19 +1265,19 @@ export function zoomAt(
 }
 ```
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
 Expected: PASS.
 
-Если тест «includes the partially visible cell at the far edge» не сошёлся, проверьте,
-что `visibleBounds` берёт `width - 1` и `height - 1`: пиксель с номером `width` лежит
-уже за пределами окна.
+If the "includes the partially visible cell at the far edge" test doesn't pass, check
+that `visibleBounds` takes `width - 1` and `height - 1`: the pixel numbered `width`
+already lies outside the window.
 
-- [ ] **Step 5: Проверить линт**
+- [ ] **Step 5: Check lint**
 
 Run: `npm run lint`
-Expected: проходит.
+Expected: passes.
 
 - [ ] **Step 6: Commit**
 
@@ -1289,33 +1288,33 @@ git commit -m "feat: add camera mapping screen pixels to grid cells"
 
 ---
 
-### Task 5: Текстовый экспорт
+### Task 5: Text export
 
 **Files:**
 - Create: `src/core/export/text.ts`
 - Test: `src/core/export/text.test.ts`
 
 **Interfaces:**
-- Consumes: `Scene` из `src/core/scene.ts`
+- Consumes: `Scene` from `src/core/scene.ts`
 - Produces:
   ```ts
   export const DEFAULT_FILLER = '〰️'
   export function toText(scene: Scene, filler?: string): string
   ```
 
-**Почему филлер живёт здесь, а не в сцене.** Мессенджеры обрезают настоящие пробелы,
-и рисунок рассыпается при вставке. Поэтому пустые клетки внутри рисунка заполняются
-видимым символом `〰️`. В модели его нет: на бесконечном холсте пустых клеток
-бесконечно много, поэтому филлер существует только как деталь текстового
-представления. Обрезка пустых краёв получается сама собой — границы рисунка и есть
-его содержимое.
+**Why the filler lives here, not in the scene.** Messaging apps strip real spaces,
+which destroys the art on paste. So empty cells inside the drawing are filled with
+the visible character `〰️`. The model itself has no such thing: on an unbounded
+canvas there are infinitely many empty cells, so the filler exists only as a detail
+of the text representation. Trimming empty edges falls out for free — the drawing's
+bounds are its content.
 
-Проект тестов `node` включает `src/core/**/*.test.ts`, поэтому вложенная папка
-`export` подхватывается без изменений конфигурации.
+The `node` test project includes `src/core/**/*.test.ts`, so the nested `export`
+folder is picked up without any config changes.
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Write a failing test**
 
-Создать `src/core/export/text.test.ts`:
+Create `src/core/export/text.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1399,18 +1398,19 @@ describe('toText', () => {
 })
 ```
 
-Тесты про несквадратные области здесь не для полноты: старый движок держал матрицу
-как `columnsCount` строк по `rowsCount` элементов и читал её как `matrix[j][i]`, из-за
-чего работал только на квадратной сетке. Эти два теста закрывают тот дефект навсегда.
+The tests for non-square areas aren't there just for completeness: the old engine
+kept the matrix as `columnsCount` rows of `rowsCount` elements and read it as
+`matrix[j][i]`, which only worked for a square grid. These two tests close off
+that defect for good.
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./text` не найден.
+Expected: FAIL — module `./text` not found.
 
-- [ ] **Step 3: Реализовать экспорт**
+- [ ] **Step 3: Implement the export**
 
-Создать `src/core/export/text.ts`:
+Create `src/core/export/text.ts`:
 
 ```ts
 import { Scene } from '../scene'
@@ -1447,15 +1447,15 @@ export function toText(scene: Scene, filler: string = DEFAULT_FILLER): string {
 }
 ```
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 5: Проверить линт**
+- [ ] **Step 5: Check lint**
 
 Run: `npm run lint`
-Expected: проходит.
+Expected: passes.
 
 - [ ] **Step 6: Commit**
 
@@ -1466,7 +1466,7 @@ git commit -m "feat: add text export cropped to the drawing bounds"
 
 ---
 
-### Task 6: Инструменты — кисть и ластик
+### Task 6: Tools — brush and eraser
 
 **Files:**
 - Create: `src/tools/types.ts`
@@ -1476,8 +1476,8 @@ git commit -m "feat: add text export cropped to the drawing bounds"
 - Test: `src/tools/eraser.test.ts`
 
 **Interfaces:**
-- Consumes: `Cell`, `Emoji` из `src/core/types.ts`; `Scene`; `StrokeRecorder` из
-  `src/core/operations.ts`; `cellsBetween` из `src/core/line.ts`
+- Consumes: `Cell`, `Emoji` from `src/core/types.ts`; `Scene`; `StrokeRecorder` from
+  `src/core/operations.ts`; `cellsBetween` from `src/core/line.ts`
 - Produces:
   ```ts
   // src/tools/types.ts
@@ -1500,17 +1500,18 @@ git commit -m "feat: add text export cropped to the drawing bounds"
   export function createEraserTool(): Tool
   ```
 
-**Почему фабрики, а не константы.** Инструмент помнит последнюю пройденную клетку,
-чтобы достроить путь между событиями указателя. Это состояние, поэтому каждый
-инструмент создаётся вызовом фабрики, а не расшаривается как синглтон.
+**Why factories rather than constants.** A tool remembers the last cell it visited,
+so it can fill in the path between pointer events. That's state, so each tool is
+created by calling a factory rather than shared as a singleton.
 
-**Почему ластик — отдельный инструмент.** В старом коде стирание было «кистью, рисующей
-филлером», из-за чего признак стирания приходилось выводить сравнением кисти с филлером.
-В новой модели стирание — это удаление клетки, и ластик просто пишет `undefined`.
+**Why the eraser is a separate tool.** In the old code, erasing was "a brush that
+paints the filler," which meant the erasing flag had to be derived by comparing the
+brush against the filler. In the new model, erasing is deleting a cell, and the
+eraser simply writes `undefined`.
 
-- [ ] **Step 1: Написать падающий тест для кисти**
+- [ ] **Step 1: Write a failing test for the brush**
 
-Создать `src/tools/brush.test.ts`:
+Create `src/tools/brush.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1594,19 +1595,19 @@ describe('createBrushTool', () => {
 })
 ```
 
-Последний тест фиксирует разделение обязанностей: инструмент только пишет в `recorder`
-и никогда не вызывает `commit` сам. Мазок фиксирует владелец редактора уже после
-`onUp` — поэтому накопитель к этому моменту полон, и `commit` отдаёт операцию из трёх
-клеток, а не `null`.
+This last test pins down the division of responsibility: a tool only writes into
+`recorder` and never calls `commit` itself. The editor owner commits the stroke
+after `onUp` — so by that point the recorder is full, and `commit` returns the
+three-cell operation rather than `null`.
 
-- [ ] **Step 2: Запустить тест и убедиться, что он падает**
+- [ ] **Step 2: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модули `./brush` и `./types` не найдены.
+Expected: FAIL — modules `./brush` and `./types` not found.
 
-- [ ] **Step 3: Создать интерфейс инструмента**
+- [ ] **Step 3: Create the tool interface**
 
-Создать `src/tools/types.ts`:
+Create `src/tools/types.ts`:
 
 ```ts
 import type { StrokeRecorder } from '../core/operations'
@@ -1632,9 +1633,9 @@ export interface Tool {
 }
 ```
 
-- [ ] **Step 4: Реализовать кисть**
+- [ ] **Step 4: Implement the brush**
 
-Создать `src/tools/brush.ts`:
+Create `src/tools/brush.ts`:
 
 ```ts
 import type { Cell } from '../core/types'
@@ -1675,14 +1676,14 @@ export function createBrushTool(): Tool {
 }
 ```
 
-- [ ] **Step 5: Запустить тесты кисти**
+- [ ] **Step 5: Run the brush tests**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 6: Написать падающий тест для ластика**
+- [ ] **Step 6: Write a failing test for the eraser**
 
-Создать `src/tools/eraser.test.ts`:
+Create `src/tools/eraser.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1761,14 +1762,14 @@ describe('createEraserTool', () => {
 })
 ```
 
-- [ ] **Step 7: Запустить тест и убедиться, что он падает**
+- [ ] **Step 7: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./eraser` не найден.
+Expected: FAIL — module `./eraser` not found.
 
-- [ ] **Step 8: Реализовать ластик**
+- [ ] **Step 8: Implement the eraser**
 
-Создать `src/tools/eraser.ts`:
+Create `src/tools/eraser.ts`:
 
 ```ts
 import type { Cell } from '../core/types'
@@ -1809,15 +1810,15 @@ export function createEraserTool(): Tool {
 }
 ```
 
-- [ ] **Step 9: Запустить все тесты**
+- [ ] **Step 9: Run all the tests**
 
 Run: `npm test`
 Expected: PASS.
 
-- [ ] **Step 10: Проверить линт и сборку**
+- [ ] **Step 10: Check lint and build**
 
 Run: `npm run lint && npm run build`
-Expected: обе команды проходят.
+Expected: both commands pass.
 
 - [ ] **Step 11: Commit**
 
@@ -1828,30 +1829,30 @@ git commit -m "feat: add brush and eraser tools"
 
 ---
 
-## Проверка готовности плана
+## Definition of done
 
-После выполнения всех задач должно быть верно одновременно:
+Once every task is complete, all of the following must hold at once:
 
-- [ ] `npm test` проходит; node-проект содержит тесты `line`, `scene`, `operations`,
-      `history`, `camera`, `export/text`, `brush`, `eraser`
-- [ ] `npm run lint` проходит без предупреждений
-- [ ] `npm run build` проходит
-- [ ] Ни один файл из `src/core` и `src/tools` не обращается к `window`, `document`,
-      `canvas` или другим браузерным API — проверяется командой
+- [ ] `npm test` passes; the node project contains tests for `line`, `scene`,
+      `operations`, `history`, `camera`, `export/text`, `brush`, `eraser`
+- [ ] `npm run lint` passes with no warnings
+- [ ] `npm run build` passes
+- [ ] No file under `src/core` or `src/tools` touches `window`, `document`, `canvas`
+      or any other browser API — checked with
       `grep -rn "window\.\|document\.\|canvas\|requestAnimationFrame" src/core src/tools`,
-      которая должна ничего не найти
-- [ ] Приложение в браузере работает как раньше: старый движок не тронут
-- [ ] В `src/` нет ни одного символа кириллицы — проверяется командой
-      `grep -rn "[а-яА-ЯёЁ]" src/`, которая должна ничего не найти
+      which must find nothing
+- [ ] The browser app works as it did before: the old engine is untouched
+- [ ] There is not a single Cyrillic character in `src/` — checked with
+      `grep -rn "[а-яА-ЯёЁ]" src/`, which must find nothing
 
-## Что дальше
+## What comes next
 
-План 3 берёт это ядро и достраивает вокруг него рендер (`render/glyphAtlas.ts`,
-`render/scene.ts`, `render/theme.ts`), ввод с жестами (`input/pointer.ts`), фасад
-`editor/Editor.ts` и переводит React-оболочку на новый движок, удаляя
-`src/lib/EmojiCanvas.ts`. Требование оттуда, которое надо помнить уже сейчас:
-обработчик указателя обязан приводить экранные координаты к целым клеткам через
-`screenToCell` до вызова инструментов.
+Plan 3 takes this core and builds around it: rendering (`render/glyphAtlas.ts`,
+`render/scene.ts`, `render/theme.ts`), gesture input (`input/pointer.ts`), an
+`editor/Editor.ts` facade, and it migrates the React shell onto the new engine,
+removing `src/lib/EmojiCanvas.ts`. One requirement from that plan worth remembering
+now: the pointer handler must snap screen coordinates to whole cells via
+`screenToCell` before calling into the tools.
 
-После плана 3 — разбор отложенных замечаний из `PROGRESS.md` и слияние ветки
-`foundation` в `main`.
+After plan 3 — work through the deferred remarks in `PROGRESS.md` and merge the
+`foundation` branch into `main`.

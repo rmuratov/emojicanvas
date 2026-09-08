@@ -45,7 +45,7 @@ Emoji rendering inside a cell uses hard-coded `emojiOffsetInsideCellX/Y` nudges.
 
 ## Conventions
 
-- **Everything inside the repo is written in English** — code, identifiers, comments, test names, commit messages. Planning and design documents under `docs/` may be written in another language, but nothing from them is copied into code verbatim: translate first.
+- **Everything inside the repo is written in English** — code, identifiers, comments, test names, commit messages, and the documents under `docs/`. No exceptions: the spec and the plans were once written in Russian, test names were copied out of a plan into the repo verbatim, and the fix was to translate the documents rather than to keep translating on the fly.
 - Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
 - `eslint-plugin-perfectionist` (`recommended-natural`) is on: object keys, JSX props, interface members, imports and exports must be sorted naturally. `perfectionist/sort-classes` is disabled, so class members are free-form. Lint runs with `--max-warnings 0`, so a stray unsorted prop fails the build.
 - Styling is Tailwind utility classes inline; `src/index.css` is a Tailwind import with `@source not` directives excluding prose files to prevent dead utility classes (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).

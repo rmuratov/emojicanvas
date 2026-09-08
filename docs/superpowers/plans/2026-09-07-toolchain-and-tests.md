@@ -1,124 +1,129 @@
-# Тулчейн и тестовая инфраструктура — план реализации
+# Toolchain and Test Infrastructure — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Перевести проект на актуальные версии инструментов и поднять тестовую
-инфраструктуру Vitest с двумя проектами (node и browser), не меняя поведение приложения.
+**Goal:** Move the project onto current tool versions and stand up a Vitest test
+infrastructure with two projects (node and browser), without changing the app's
+behavior.
 
-**Architecture:** Обновление идёт по одному инструменту за задачу, каждая задача
-заканчивается проверкой, что приложение собирается и работает. Код приложения не
-переписывается — правки только те, без которых новая версия инструмента не работает.
-Тестовая инфраструктура ставится последней, на уже обновлённом тулчейне.
+**Architecture:** The upgrade proceeds one tool per task, and every task ends with
+a check that the app still builds and works. Application code is not rewritten —
+only the changes a new tool version actually forces. The test infrastructure goes
+in last, on top of the already-upgraded toolchain.
 
 **Tech Stack:** Vite 8, React 19, TypeScript 7, ESLint 10 (flat config), Tailwind 4,
-Vitest 5 (node + browser mode через Playwright), Prettier 3.9.
+Vitest 5 (node + browser mode via Playwright), Prettier 3.9.
 
 **Spec:** `docs/superpowers/specs/2026-09-07-foundation-design.md`
 
 ## Global Constraints
 
-- **Не выполнять `git commit` и `git push` без явного разрешения пользователя.**
-  Шаги «Commit» в задачах ниже приведены для полноты и выполняются только по его команде.
-- Приложение после каждой задачи собирается (`npm run build`) и работает в браузере
-  так же, как до неё. Внешний вид не меняется в этом плане вообще.
-- `base: '/emojicanvas/'` в `vite.config.ts` сохраняется — от него зависит публикация
-  на GitHub Pages.
-- Настройки Prettier не меняются: без точек с запятой, одинарные кавычки, ширина 80,
+- **Do not run `git commit` or `git push` without the user's explicit permission.**
+  The "Commit" steps in the tasks below are included for completeness and are
+  carried out only on the user's instruction.
+- After every task the app builds (`npm run build`) and behaves in the browser
+  exactly as it did before that task. Appearance does not change anywhere in this
+  plan.
+- `base: '/emojicanvas/'` in `vite.config.ts` is preserved — GitHub Pages
+  publishing depends on it.
+- Prettier settings do not change: no semicolons, single quotes, width 80,
   `arrowParens: 'avoid'`, `trailingComma: 'all'`, `endOfLine: 'lf'`.
-- Линт запускается с `--max-warnings 0`; предупреждения считаются ошибками.
-- Node 24 локально и в CI.
-- Целевые версии: react/react-dom 19.2, vite 8.2, @vitejs/plugin-react 6.1,
+- Lint runs with `--max-warnings 0`; warnings count as errors.
+- Node 24 locally and in CI.
+- Target versions: react/react-dom 19.2, vite 8.2, @vitejs/plugin-react 6.1,
   typescript 7.0, eslint 10.10, typescript-eslint 8.69, eslint-plugin-perfectionist 5.11,
   eslint-plugin-react-hooks 7.1, tailwindcss 4.3, prettier 3.9,
   emoji-picker-element 1.29, vitest 5.0.
 
 ---
 
-### Task 1: Базовое состояние
+### Task 1: Baseline state
 
-Зафиксировать точку отсчёта: `node_modules` в репозитории нет, и надо убедиться, что
-до обновлений проект вообще собирается. Без этого шага непонятно, что именно сломало
-последующее обновление.
+Establish a starting point: `node_modules` isn't in the repo, and we need to
+confirm the project even builds before any upgrades. Without this step there's no
+way to tell what a later upgrade actually broke.
 
 **Files:**
-- Modify: нет (только установка зависимостей)
+- Modify: none (dependency installation only)
 
 **Interfaces:**
-- Consumes: ничего
-- Produces: рабочее `node_modules` и подтверждённая работоспособность старой сборки
+- Consumes: nothing
+- Produces: a working `node_modules` and a confirmed-working old build
 
-- [ ] **Step 1: Установить зависимости по существующему lock-файлу**
+- [ ] **Step 1: Install dependencies from the existing lockfile**
 
 ```bash
 npm ci
 ```
 
-Если `npm ci` падает из-за расхождения `package-lock.json` с `package.json`, выполнить
-`npm install` и отметить это — lock-файл всё равно будет перезаписан в следующих задачах.
+If `npm ci` fails because `package-lock.json` is out of sync with `package.json`,
+run `npm install` instead and note that it happened — the lockfile is going to be
+rewritten in later tasks anyway.
 
-- [ ] **Step 2: Проверить сборку**
+- [ ] **Step 2: Check the build**
 
 Run: `npm run build`
-Expected: сборка проходит, появляется каталог `dist/`.
+Expected: the build succeeds, a `dist/` directory appears.
 
-- [ ] **Step 3: Проверить линт**
+- [ ] **Step 3: Check lint**
 
 Run: `npm run lint`
-Expected: без ошибок. Если ошибки есть — записать их, чтобы потом отличить старые
-от привнесённых обновлением.
+Expected: no errors. If there are errors, record them so later they can be told
+apart from ones introduced by the upgrade.
 
-- [ ] **Step 4: Проверить приложение вручную**
+- [ ] **Step 4: Check the app manually**
 
 Run: `npm run dev`
-Открыть `http://localhost:5173/emojicanvas/`. Убедиться, что рисование, ластик, очистка
-и копирование работают. Это эталон поведения для всех последующих задач.
+Open `http://localhost:5173/emojicanvas/`. Confirm drawing, the eraser, clear, and
+copy all work. This is the behavioral baseline for every task that follows.
 
 ---
 
-### Task 2: Vite 8, React 19 и плагин React
+### Task 2: Vite 8, React 19, and the React plugin
 
 **Files:**
 - Modify: `package.json`
-- Modify: `src/main.tsx` (только при необходимости)
+- Modify: `src/main.tsx` (only if needed)
 
 **Interfaces:**
-- Consumes: рабочее окружение из Task 1
-- Produces: приложение на React 19 и Vite 8
+- Consumes: the working environment from Task 1
+- Produces: the app on React 19 and Vite 8
 
-- [ ] **Step 1: Обновить пакеты**
+- [ ] **Step 1: Upgrade packages**
 
 ```bash
 npm install react@^19.2.0 react-dom@^19.2.0
 npm install -D @types/react@^19 @types/react-dom@^19 vite@^8.2.0 @vitejs/plugin-react@^6.1.0
 ```
 
-- [ ] **Step 2: Проверить сборку**
+- [ ] **Step 2: Check the build**
 
 Run: `npm run build`
-Expected: сборка проходит. React 19 сохранил `createRoot` из `react-dom/client`,
-поэтому `src/main.tsx` менять не требуется.
+Expected: the build succeeds. React 19 kept `createRoot` in `react-dom/client`, so
+`src/main.tsx` needs no changes.
 
-Если появятся ошибки типов вокруг `ReactDOM.createRoot(document.getElementById('root')!)`,
-причина в обновлённых `@types/react` — исправлять точечно, не меняя логику.
+If type errors show up around
+`ReactDOM.createRoot(document.getElementById('root')!)`, the cause is the updated
+`@types/react` — fix it locally, without changing the logic.
 
-- [ ] **Step 3: Проверить приложение вручную**
+- [ ] **Step 3: Check the app manually**
 
 Run: `npm run dev`
-Открыть `http://localhost:5173/emojicanvas/`, повторить проверку из Task 1 Step 4.
+Open `http://localhost:5173/emojicanvas/`, repeat the check from Task 1 Step 4.
 
-Особое внимание — эмодзи-пикеру: `emoji-picker-element` это веб-компонент, а React 19
-изменил обработку кастомных элементов. Пикер должен открываться и выбор эмодзи должен
-менять кисть.
+Pay particular attention to the emoji picker: `emoji-picker-element` is a web
+component, and React 19 changed how custom elements are handled. The picker must
+still open, and picking an emoji must still change the brush.
 
-- [ ] **Step 4: Обновить emoji-picker-element**
+- [ ] **Step 4: Upgrade emoji-picker-element**
 
 ```bash
 npm install emoji-picker-element@^1.29.0
 ```
 
-Run: `npm run dev` и снова проверить пикер.
+Run: `npm run dev` and check the picker again.
 
-- [ ] **Step 5: Commit** (только с разрешения пользователя)
+- [ ] **Step 5: Commit** (only with the user's permission)
 
 ```bash
 git add package.json package-lock.json
@@ -129,52 +134,56 @@ git commit -m "chore: upgrade to React 19 and Vite 8"
 
 ### Task 3: TypeScript 7
 
-TypeScript 7 — новый компилятор на Go. Основной риск задачи в том, поддерживает ли его
-`typescript-eslint`; линт обновляется в Task 4, поэтому здесь проверяется только `tsc`.
+TypeScript 7 is a new compiler written in Go. The main risk in this task is
+whether `typescript-eslint` supports it; lint gets upgraded in Task 4, so here
+only `tsc` is checked.
 
 **Files:**
 - Modify: `package.json`
 - Modify: `tsconfig.json`
 
 **Interfaces:**
-- Consumes: окружение из Task 2
-- Produces: проходящая проверка типов на TypeScript 7
+- Consumes: the environment from Task 2
+- Produces: a passing type check on TypeScript 7
 
-- [ ] **Step 1: Обновить TypeScript**
+- [ ] **Step 1: Upgrade TypeScript**
 
 ```bash
 npm install -D typescript@^7.0.0
 ```
 
-- [ ] **Step 2: Проверить типы**
+- [ ] **Step 2: Check types**
 
 Run: `npx tsc --noEmit`
-Expected: без ошибок.
+Expected: no errors.
 
-Ожидаемые точки отказа и что с ними делать:
-- Ругань на `allowImportingTsExtensions` без `noEmit` — `noEmit` уже стоит в
-  `tsconfig.json`, проблемы быть не должно.
-- Ошибка на `@ts-ignore` в `src/components/EmojiPicker/EmojiPicker.tsx` — оставить как
-  есть, файл переписывается в плане 3.
-- Устаревшие опции компилятора — удалить только те, на которые ругается компилятор.
+Expected failure points and how to handle them:
+- A complaint about `allowImportingTsExtensions` without `noEmit` — `noEmit` is
+  already set in `tsconfig.json`, so this shouldn't be an issue.
+- An error on `@ts-ignore` in `src/components/EmojiPicker/EmojiPicker.tsx` —
+  leave it as is, the file gets rewritten in plan 3.
+- Deprecated compiler options — remove only the ones the compiler actually
+  complains about.
 
-- [ ] **Step 3: Проверить сборку**
+- [ ] **Step 3: Check the build**
 
 Run: `npm run build`
-Expected: проходит (`build` — это `tsc && vite build`).
+Expected: passes (`build` is `tsc && vite build`).
 
-- [ ] **Step 4: Зафиксировать результат проверки риска**
+- [ ] **Step 4: Record the outcome of the risk check**
 
-Если TypeScript 7 не заработал за разумное время — откатиться на 5.9:
+If TypeScript 7 doesn't work out within a reasonable amount of time, roll back to
+5.9:
 
 ```bash
 npm install -D typescript@^5.9.0
 ```
 
-и записать это решение в конце `docs/superpowers/specs/2026-09-07-foundation-design.md`
-в разделе «Риски». Остальной план не меняется.
+and record that decision at the end of
+`docs/superpowers/specs/2026-09-07-foundation-design.md`, in the "Risks" section.
+The rest of the plan doesn't change.
 
-- [ ] **Step 5: Commit** (только с разрешения пользователя)
+- [ ] **Step 5: Commit** (only with the user's permission)
 
 ```bash
 git add package.json package-lock.json tsconfig.json
@@ -183,16 +192,16 @@ git commit -m "chore: upgrade TypeScript"
 
 ---
 
-### Task 4: ESLint 10 и flat config
+### Task 4: ESLint 10 and flat config
 
-ESLint 10 работает только с flat config. `.eslintrc.cjs` удаляется, правила переносятся
-по смыслу в `eslint.config.js`.
+ESLint 10 only works with flat config. `.eslintrc.cjs` is deleted, and its rules
+are ported over by intent into `eslint.config.js`.
 
-Плагины `eslint-plugin-import` и `eslint-import-resolver-typescript` убираются:
-сортировку импортов делает `perfectionist`, разрешение путей — TypeScript, а поддержка
-flat config у `eslint-plugin-import` исторически проблемная. Единственное правило,
-которое от него использовалось, — `import/newline-after-import`; форматирование пустых
-строк остаётся за Prettier.
+`eslint-plugin-import` and `eslint-import-resolver-typescript` are removed:
+`perfectionist` handles import sorting, TypeScript handles path resolution, and
+`eslint-plugin-import`'s flat-config support has historically been shaky. The only
+rule that was actually used from it was `import/newline-after-import`; blank-line
+formatting stays with Prettier.
 
 **Files:**
 - Create: `eslint.config.js`
@@ -200,10 +209,10 @@ flat config у `eslint-plugin-import` исторически проблемна�
 - Modify: `package.json`
 
 **Interfaces:**
-- Consumes: окружение из Task 3
-- Produces: проходящий `npm run lint` на ESLint 10
+- Consumes: the environment from Task 3
+- Produces: a passing `npm run lint` on ESLint 10
 
-- [ ] **Step 1: Обновить и доустановить пакеты**
+- [ ] **Step 1: Upgrade and add packages**
 
 ```bash
 npm uninstall eslint-plugin-import eslint-import-resolver-typescript @typescript-eslint/eslint-plugin @typescript-eslint/parser
@@ -212,9 +221,9 @@ npm install -D eslint@^10.10.0 typescript-eslint@^8.69.0 @eslint/js@^10.0.0 glob
   eslint-plugin-perfectionist@^5.11.0 eslint-config-prettier@^10.0.0 prettier@^3.9.0
 ```
 
-- [ ] **Step 2: Сверить имена flat-конфигов у плагинов**
+- [ ] **Step 2: Check plugins' flat-config names**
 
-Имена конфигов между мажорными версиями меняются. Проверить фактические:
+Config names change between major versions. Check the actual ones:
 
 ```bash
 node -e "import('eslint-plugin-react-hooks').then(m=>console.log('react-hooks:',Object.keys(m.default.configs)))"
@@ -222,13 +231,13 @@ node -e "import('eslint-plugin-perfectionist').then(m=>console.log('perfectionis
 node -e "import('eslint-plugin-react').then(m=>console.log('react:',Object.keys(m.default.configs)))"
 ```
 
-Ожидается, что у `react-hooks` есть `recommended-latest`, у `react` —
-`flat/recommended` и `flat/jsx-runtime`. Если имена другие — использовать
-фактические в следующем шаге.
+`react-hooks` is expected to have `recommended-latest`, and `react` —
+`flat/recommended` and `flat/jsx-runtime`. If the names differ, use the actual
+ones in the next step.
 
-- [ ] **Step 3: Создать flat config**
+- [ ] **Step 3: Create the flat config**
 
-Создать `eslint.config.js`:
+Create `eslint.config.js`:
 
 ```js
 import js from '@eslint/js'
@@ -267,28 +276,27 @@ export default tseslint.config(
 )
 ```
 
-- [ ] **Step 4: Удалить старый конфиг**
+- [ ] **Step 4: Delete the old config**
 
 ```bash
 rm .eslintrc.cjs
 ```
 
-- [ ] **Step 5: Запустить линт**
+- [ ] **Step 5: Run lint**
 
 Run: `npm run lint`
-Expected: проходит без ошибок и предупреждений.
+Expected: passes with no errors and no warnings.
 
-`perfectionist` 5 сортирует строже версии 1.5, поэтому ожидаются замечания к порядку
-свойств и импортов. Исправлять автоматически:
+`perfectionist` 5 sorts more strictly than version 1.5, so expect findings about
+property and import order. Fix them automatically:
 
 ```bash
 npx eslint src --ext ts,tsx --fix
 ```
 
-Затем прогнать линт снова и убедиться, что автоправка ничего не сломала:
-`npm run build`.
+Then run lint again and confirm the autofix broke nothing: `npm run build`.
 
-- [ ] **Step 6: Commit** (только с разрешения пользователя)
+- [ ] **Step 6: Commit** (only with the user's permission)
 
 ```bash
 git add eslint.config.js package.json package-lock.json src
@@ -300,8 +308,8 @@ git commit -m "chore: migrate to ESLint 10 flat config"
 
 ### Task 5: Tailwind 4
 
-Tailwind 4 конфигурируется из CSS, отдельный PostCSS больше не нужен — используется
-плагин для Vite.
+Tailwind 4 is configured from CSS; a separate PostCSS setup is no longer needed —
+a Vite plugin is used instead.
 
 **Files:**
 - Modify: `package.json`
@@ -310,19 +318,19 @@ Tailwind 4 конфигурируется из CSS, отдельный PostCSS �
 - Delete: `tailwind.config.js`, `postcss.config.js`
 
 **Interfaces:**
-- Consumes: окружение из Task 4
-- Produces: та же вёрстка на Tailwind 4
+- Consumes: the environment from Task 4
+- Produces: the same layout on Tailwind 4
 
-- [ ] **Step 1: Обновить пакеты**
+- [ ] **Step 1: Upgrade packages**
 
 ```bash
 npm uninstall autoprefixer postcss
 npm install -D tailwindcss@^4.3.0 @tailwindcss/vite@^4.3.0
 ```
 
-- [ ] **Step 2: Подключить плагин в Vite**
+- [ ] **Step 2: Wire the plugin into Vite**
 
-Заменить содержимое `vite.config.ts`:
+Replace the contents of `vite.config.ts`:
 
 ```ts
 import tailwindcss from '@tailwindcss/vite'
@@ -336,34 +344,35 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: Заменить директивы в CSS**
+- [ ] **Step 3: Replace the CSS directives**
 
-Заменить содержимое `src/index.css`:
+Replace the contents of `src/index.css`:
 
 ```css
 @import 'tailwindcss';
 ```
 
-- [ ] **Step 4: Удалить старые конфиги**
+- [ ] **Step 4: Delete the old configs**
 
 ```bash
 rm tailwind.config.js postcss.config.js
 ```
 
-- [ ] **Step 5: Проверить сборку и внешний вид**
+- [ ] **Step 5: Check the build and the appearance**
 
 Run: `npm run build`
-Expected: проходит.
+Expected: passes.
 
 Run: `npm run dev`
-Открыть приложение и сравнить с эталоном из Task 1 Step 4. Проверить обе раскладки:
-узкое окно (панель инструментов снизу) и широкое (панель сбоку) — вёрстка использует
-префиксы `md:`, а в Tailwind 4 изменился слой базовых стилей.
+Open the app and compare it against the baseline from Task 1 Step 4. Check both
+layouts: narrow window (toolbar at the bottom) and wide window (toolbar on the
+side) — the layout uses `md:` prefixes, and Tailwind 4 changed the base styles
+layer.
 
-Отдельно проверить `index.html`: на `<html>` и `<body>` висит класс `overscroll-none`,
-он должен продолжать работать.
+Separately check `index.html`: the `overscroll-none` class sits on `<html>` and
+`<body>` and must keep working.
 
-- [ ] **Step 6: Commit** (только с разрешения пользователя)
+- [ ] **Step 6: Commit** (only with the user's permission)
 
 ```bash
 git add package.json package-lock.json vite.config.ts src/index.css
@@ -373,11 +382,12 @@ git commit -m "chore: migrate to Tailwind 4"
 
 ---
 
-### Task 6: Vitest, проект node
+### Task 6: Vitest, node project
 
-Первый тестовый проект — для чистой логики без DOM. Смоук-тест пишется на реальном
-модуле, а не на заглушке: берётся `cellsBetween` из спецификации ядра, потому что это
-самая простая по контракту чистая функция, и она всё равно понадобится в плане 2.
+The first test project is for pure logic with no DOM. The smoke test is written
+against a real module, not a stub: it uses `cellsBetween` from the core spec,
+because it's the simplest pure function by contract, and plan 2 will need it
+anyway.
 
 **Files:**
 - Create: `vitest.config.ts`
@@ -387,19 +397,19 @@ git commit -m "chore: migrate to Tailwind 4"
 - Modify: `package.json`
 
 **Interfaces:**
-- Consumes: окружение из Task 5
-- Produces: `npm test` запускает node-проект; тип `Cell` и функция
-  `cellsBetween(from: Cell, to: Cell): Cell[]` доступны плану 2
+- Consumes: the environment from Task 5
+- Produces: `npm test` runs the node project; the `Cell` type and the
+  `cellsBetween(from: Cell, to: Cell): Cell[]` function are available to plan 2
 
-- [ ] **Step 1: Установить Vitest**
+- [ ] **Step 1: Install Vitest**
 
 ```bash
 npm install -D vitest@^5.0.0
 ```
 
-- [ ] **Step 2: Создать конфиг с проектом node**
+- [ ] **Step 2: Create the config with the node project**
 
-Создать `vitest.config.ts`:
+Create `vitest.config.ts`:
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -419,23 +429,23 @@ export default defineConfig({
 })
 ```
 
-Поле `projects` появилось в Vitest 3 вместо файла workspace. Если Vitest сообщит, что
-опция неизвестна, сверить актуальное имя:
-`node -e "console.log(Object.keys(require('vitest/node')))"` и заглянуть в
+The `projects` field appeared in Vitest 3, replacing the workspace file. If
+Vitest reports the option as unknown, check the actual name:
+`node -e "console.log(Object.keys(require('vitest/node')))"` and look in
 `node_modules/vitest/dist/config.d.ts`.
 
-- [ ] **Step 3: Добавить скрипты**
+- [ ] **Step 3: Add scripts**
 
-В `package.json` в разделе `scripts`:
+In `package.json`, under `scripts`:
 
 ```json
 "test": "vitest run",
 "test:watch": "vitest"
 ```
 
-- [ ] **Step 4: Написать падающий тест**
+- [ ] **Step 4: Write a failing test**
 
-Создать `src/core/line.test.ts`:
+Create `src/core/line.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -443,11 +453,11 @@ import { describe, expect, it } from 'vitest'
 import { cellsBetween } from './line'
 
 describe('cellsBetween', () => {
-  it('возвращает одну клетку, когда точки совпадают', () => {
+  it('returns a single cell when the points coincide', () => {
     expect(cellsBetween({ x: 2, y: 3 }, { x: 2, y: 3 })).toEqual([{ x: 2, y: 3 }])
   })
 
-  it('строит горизонтальный отрезок, включая обе точки', () => {
+  it('builds a horizontal segment, including both points', () => {
     expect(cellsBetween({ x: 0, y: 0 }, { x: 3, y: 0 })).toEqual([
       { x: 0, y: 0 },
       { x: 1, y: 0 },
@@ -456,7 +466,7 @@ describe('cellsBetween', () => {
     ])
   })
 
-  it('строит диагональ', () => {
+  it('builds a diagonal', () => {
     expect(cellsBetween({ x: 0, y: 0 }, { x: 2, y: 2 })).toEqual([
       { x: 0, y: 0 },
       { x: 1, y: 1 },
@@ -464,7 +474,7 @@ describe('cellsBetween', () => {
     ])
   })
 
-  it('работает в отрицательных координатах и в обратном направлении', () => {
+  it('works with negative coordinates and in the reverse direction', () => {
     expect(cellsBetween({ x: 0, y: 0 }, { x: -2, y: -1 })).toEqual([
       { x: 0, y: 0 },
       { x: -1, y: -1 },
@@ -474,7 +484,7 @@ describe('cellsBetween', () => {
 })
 ```
 
-Создать `src/core/types.ts`:
+Create `src/core/types.ts`:
 
 ```ts
 export type Cell = { x: number; y: number }
@@ -482,22 +492,22 @@ export type CellBounds = { maxX: number; maxY: number; minX: number; minY: numbe
 export type Emoji = string
 ```
 
-- [ ] **Step 5: Запустить тест и убедиться, что он падает**
+- [ ] **Step 5: Run the test and confirm it fails**
 
 Run: `npm test`
-Expected: FAIL — модуль `./line` не найден.
+Expected: FAIL — the `./line` module isn't found.
 
-- [ ] **Step 6: Реализовать `cellsBetween`**
+- [ ] **Step 6: Implement `cellsBetween`**
 
-Создать `src/core/line.ts`:
+Create `src/core/line.ts`:
 
 ```ts
 import type { Cell } from './types'
 
 /**
- * Клетки на отрезке между двумя точками по алгоритму Брезенхема,
- * включая обе крайние. Нужен, чтобы быстрое движение указателя
- * не оставляло разрывов в линии.
+ * Cells on the segment between two points, using Bresenham's algorithm,
+ * including both endpoints. Needed so a fast pointer move doesn't leave
+ * gaps in the line.
  */
 export function cellsBetween(from: Cell, to: Cell): Cell[] {
   const dx = Math.abs(to.x - from.x)
@@ -530,24 +540,25 @@ export function cellsBetween(from: Cell, to: Cell): Cell[] {
 }
 ```
 
-- [ ] **Step 7: Запустить тесты**
+- [ ] **Step 7: Run the tests**
 
 Run: `npm test`
-Expected: PASS, четыре теста.
+Expected: PASS, four tests.
 
-Если тест про отрицательные координаты не сошёлся, сверить ожидаемую последовательность
-с фактической: у Брезенхема при отношении сторон 2:1 промежуточная клетка может лежать
-как в `{-1,-1}`, так и в `{-1,0}`. Обе последовательности связны и корректны — поправить
-ожидание в тесте под фактическое поведение, но убедиться, что соседние клетки в
-результате отличаются не более чем на единицу по каждой оси.
+If the negative-coordinates test doesn't match, compare the expected sequence
+against the actual one: with Bresenham, at a 2:1 side ratio the intermediate cell
+can legitimately land at either `{-1,-1}` or `{-1,0}`. Both sequences are
+connected and correct — adjust the test's expectation to match actual behavior,
+but confirm that adjacent cells in the result never differ by more than one unit
+on either axis.
 
-- [ ] **Step 8: Проверить линт**
+- [ ] **Step 8: Check lint**
 
 Run: `npm run lint`
-Expected: проходит. `perfectionist` требует натуральной сортировки — в `types.ts`
-ключи типов уже упорядочены по алфавиту.
+Expected: passes. `perfectionist` requires natural sorting — in `types.ts` the
+type keys are already in alphabetical order.
 
-- [ ] **Step 9: Commit** (только с разрешения пользователя)
+- [ ] **Step 9: Commit** (only with the user's permission)
 
 ```bash
 git add vitest.config.ts package.json package-lock.json src/core
@@ -556,10 +567,10 @@ git commit -m "test: set up Vitest node project with cellsBetween"
 
 ---
 
-### Task 7: Vitest, проект browser
+### Task 7: Vitest, browser project
 
-Второй проект — для того, что требует настоящего браузера: canvas, события указателя,
-React-компоненты. Провайдер — Playwright.
+The second project is for anything that needs a real browser: canvas, pointer
+events, React components. The provider is Playwright.
 
 **Files:**
 - Modify: `vitest.config.ts`
@@ -568,19 +579,20 @@ React-компоненты. Провайдер — Playwright.
 - Modify: `.gitignore`
 
 **Interfaces:**
-- Consumes: конфиг из Task 6
-- Produces: `npm test` запускает оба проекта; browser-проект доступен планам 2 и 3
+- Consumes: the config from Task 6
+- Produces: `npm test` runs both projects; the browser project is available to
+  plans 2 and 3
 
-- [ ] **Step 1: Установить browser mode и Playwright**
+- [ ] **Step 1: Install browser mode and Playwright**
 
 ```bash
 npm install -D @vitest/browser@^5.0.0 @vitest/browser-playwright@^5.0.0 playwright@^1.63.0
 npx playwright install chromium --with-deps
 ```
 
-- [ ] **Step 2: Добавить проект browser в конфиг**
+- [ ] **Step 2: Add the browser project to the config**
 
-Заменить содержимое `vitest.config.ts`:
+Replace the contents of `vitest.config.ts`:
 
 ```ts
 import { playwright } from '@vitest/browser-playwright'
@@ -613,14 +625,14 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: Написать смоук-тест, доказывающий наличие настоящего canvas**
+- [ ] **Step 3: Write a smoke test proving a real canvas is present**
 
-Создать `src/render/glyphAtlas.smoke.test.ts`:
+Create `src/render/glyphAtlas.smoke.test.ts`:
 
 ```ts
 import { expect, it } from 'vitest'
 
-it('в браузерном проекте доступен настоящий 2D-контекст', () => {
+it('a real 2D context is available in the browser project', () => {
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 32
@@ -635,7 +647,7 @@ it('в браузерном проекте доступен настоящий 2
   expect([r, g, b, a]).toEqual([255, 0, 0, 255])
 })
 
-it('measureText возвращает метрики фактических границ глифа', () => {
+it('measureText returns actual-bounding-box glyph metrics', () => {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
   ctx.font = '30px sans-serif'
@@ -647,27 +659,27 @@ it('measureText возвращает метрики фактических гр�
 })
 ```
 
-Второй тест не декоративный: на нём держится вся центровка глифов из спецификации.
-Если метрик нет, план 3 придётся строить на запасном варианте.
+The second test isn't decorative: the spec's whole glyph-centering approach rests
+on it. If the metrics aren't there, plan 3 will have to be built on a fallback.
 
-- [ ] **Step 4: Запустить тесты**
+- [ ] **Step 4: Run the tests**
 
 Run: `npm test`
-Expected: PASS в обоих проектах — четыре теста в node, два в browser.
+Expected: PASS in both projects — four tests in node, two in browser.
 
-При падении с сообщением про отсутствующий браузер повторить
-`npx playwright install chromium --with-deps`.
+If it fails with a message about a missing browser, run
+`npx playwright install chromium --with-deps` again.
 
-- [ ] **Step 5: Добавить артефакты Vitest в .gitignore**
+- [ ] **Step 5: Add Vitest artifacts to .gitignore**
 
-Дописать в `.gitignore`:
+Append to `.gitignore`:
 
 ```
 coverage
 __screenshots__
 ```
 
-- [ ] **Step 6: Commit** (только с разрешения пользователя)
+- [ ] **Step 6: Commit** (only with the user's permission)
 
 ```bash
 git add vitest.config.ts package.json package-lock.json .gitignore src/render
@@ -682,12 +694,12 @@ git commit -m "test: add Vitest browser project via Playwright"
 - Modify: `.github/workflows/vite.yaml`
 
 **Interfaces:**
-- Consumes: скрипты `lint`, `test`, `build` из предыдущих задач
-- Produces: CI, проверяющий линт и тесты перед публикацией
+- Consumes: the `lint`, `test`, `build` scripts from previous tasks
+- Produces: CI that checks lint and tests before publishing
 
-- [ ] **Step 1: Обновить workflow**
+- [ ] **Step 1: Update the workflow**
 
-Заменить блок `steps` job `deploy` в `.github/workflows/vite.yaml`:
+Replace the `steps` block of the `deploy` job in `.github/workflows/vite.yaml`:
 
 ```yaml
     steps:
@@ -720,31 +732,31 @@ git commit -m "test: add Vitest browser project via Playwright"
         uses: actions/deploy-pages@v4
 ```
 
-- [ ] **Step 2: Проверить синтаксис workflow локально**
+- [ ] **Step 2: Check the workflow's syntax locally**
 
 ```bash
-node -e "const y=require('fs').readFileSync('.github/workflows/vite.yaml','utf8'); console.log(y.split('\n').length + ' строк, отступы:', /\t/.test(y) ? 'ЕСТЬ ТАБЫ — ошибка' : 'ок')"
+node -e "const y=require('fs').readFileSync('.github/workflows/vite.yaml','utf8'); console.log(y.split('\n').length + ' lines, tabs:', /\t/.test(y) ? 'TABS PRESENT — error' : 'ok')"
 ```
 
-Expected: табов нет.
+Expected: no tabs.
 
-- [ ] **Step 3: Сверить фактические мажорные версии действий**
+- [ ] **Step 3: Check the actual major versions of the actions**
 
-Версии `actions/*` в примере выше проставлены по состоянию на дату плана. Перед
-применением сверить, что такие мажорные версии существуют, на страницах
+The `actions/*` versions in the example above were set as of the plan's date.
+Before applying it, confirm those majors exist, on the pages for
 `github.com/actions/checkout`, `actions/setup-node`, `actions/configure-pages`,
-`actions/upload-pages-artifact`, `actions/deploy-pages`. Если какой-то мажор ещё
-не выпущен — взять максимальный доступный.
+`actions/upload-pages-artifact`, `actions/deploy-pages`. If some major hasn't
+shipped yet, use the highest one available.
 
-- [ ] **Step 4: Прогнать локально то же, что делает CI**
+- [ ] **Step 4: Run locally what CI does**
 
 ```bash
 npm ci && npm run lint && npm test && npm run build
 ```
 
-Expected: все четыре команды проходят.
+Expected: all four commands pass.
 
-- [ ] **Step 5: Commit** (только с разрешения пользователя)
+- [ ] **Step 5: Commit** (only with the user's permission)
 
 ```bash
 git add .github/workflows/vite.yaml
@@ -753,19 +765,20 @@ git commit -m "ci: run lint and tests, update actions and Node"
 
 ---
 
-## Проверка готовности плана
+## Plan Readiness Check
 
-После выполнения всех задач должно быть верно одновременно:
+After all tasks are done, all of the following must hold at once:
 
-- [ ] `npm run build` проходит
-- [ ] `npm run lint` проходит без предупреждений
-- [ ] `npm test` запускает оба проекта и проходит
-- [ ] Приложение в браузере ведёт себя как в Task 1 Step 4, вид не изменился
-- [ ] В репозитории нет `.eslintrc.cjs`, `tailwind.config.js`, `postcss.config.js`
-- [ ] Есть `eslint.config.js` и `vitest.config.ts`
+- [ ] `npm run build` passes
+- [ ] `npm run lint` passes with no warnings
+- [ ] `npm test` runs both projects and passes
+- [ ] The app behaves in the browser as it did in Task 1 Step 4, appearance
+  unchanged
+- [ ] The repo has no `.eslintrc.cjs`, `tailwind.config.js`, `postcss.config.js`
+- [ ] `eslint.config.js` and `vitest.config.ts` exist
 
-## Что дальше
+## What's next
 
-План 2 («Ядро движка») строится на `src/core/types.ts` и `src/core/line.ts`, созданных
-в Task 6, и на node-проекте Vitest. План 3 («Рендер, ввод, интеграция») использует
-browser-проект из Task 7.
+Plan 2 ("Engine core") builds on `src/core/types.ts` and `src/core/line.ts`,
+created in Task 6, and on the node Vitest project. Plan 3 ("Rendering, input,
+integration") uses the browser project from Task 7.
