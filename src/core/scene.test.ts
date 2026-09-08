@@ -219,6 +219,15 @@ describe('Scene', () => {
     expect(restored.get(1, 2)).toBe('a')
   })
 
+  it('reads a payload with no version at all as version 1', () => {
+    const restored = Scene.fromJSON({
+      cells: { '1,2': 'a' },
+    } as unknown as SceneData)
+
+    expect(restored.size).toBe(1)
+    expect(restored.get(1, 2)).toBe('a')
+  })
+
   it('yields an empty scene for a future version it does not understand', () => {
     const restored = Scene.fromJSON({
       cells: { '1,2': 'a' },

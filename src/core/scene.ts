@@ -3,7 +3,8 @@ import type { Cell, CellBounds, Emoji } from './types'
 /**
  * The current SceneData format. Bumped whenever the serialised shape
  * changes in a way old readers can't tolerate; fromJSON rejects any other
- * version rather than guessing at its shape.
+ * stated version rather than guessing at its shape, and reads an absent
+ * one as version 1.
  */
 export const SCENE_DATA_VERSION = 1
 
@@ -79,7 +80,11 @@ export class Scene {
    * lose the envelope shape, not just individual entries. A payload whose
    * `version` isn't the one this build understands is treated the same
    * way: a future format may not be readable at all, so guessing at its
-   * shape is worse than showing an empty scene.
+   * shape is worse than showing an empty scene. An *absent* version is the
+   * one exception, and is read as version 1: the cell shape has never
+   * changed, only the envelope gained the field, so a payload without it
+   * can only be a version 1 body — rejecting it would discard a drawing
+   * this build understands perfectly well.
    */
   static fromJSON(data: SceneData): Scene {
     const scene = new Scene()
@@ -87,7 +92,7 @@ export class Scene {
     if (
       typeof data !== 'object' ||
       data === null ||
-      data.version !== SCENE_DATA_VERSION ||
+      (data.version !== undefined && data.version !== SCENE_DATA_VERSION) ||
       typeof data.cells !== 'object' ||
       data.cells === null
     ) {
