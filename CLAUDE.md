@@ -14,8 +14,11 @@ authority is `docs/superpowers/specs/2026-09-07-foundation-design.md`.
 ```shell
 npm ci
 npm run dev      # vite --host; app is at http://localhost:5173/emojicanvas/ (note the base path)
-npm run build    # tsc (typecheck, noEmit) && vite build
+npm run build    # typechecks src AND the config files, then vite build
 npm run lint     # eslint src --max-warnings 0
+npm run lint:fix # eslint src --fix
+npm run format       # prettier --write .
+npm run format:check # prettier --check . (what CI runs)
 npm test         # vitest run: a `node` project (pure logic in src/core, src/tools) and a `browser` project (Playwright + Chromium)
 npm run preview  # serve the production build
 ```
@@ -92,12 +95,16 @@ per-glyph pixel nudges are gone.
 
 - **Everything inside the repo is written in English** — code, identifiers, comments, test names, commit messages, and the documents under `docs/`. No exceptions: the spec and the plans were once written in Russian, test names were copied out of a plan into the repo verbatim, and the fix was to translate the documents rather than to keep translating on the fly.
 - Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
-- **Formatting is enforced on commit, not by `npm run lint`.** `lefthook.yml` runs
+- **Formatting is enforced twice: on commit and in CI.** `lefthook.yml` runs
   `eslint --fix` then `prettier --write` over staged files and re-stages what they
-  repair; an error neither can fix rejects the commit. The hooks install themselves
-  via the `prepare` script on `npm install`. `npm run lint` still does _not_ run
-  Prettier — `eslint-config-prettier` only disables the rules that would conflict
-  with it — so a commit made with `--no-verify` skips the formatting check entirely.
+  repair; an error neither can fix rejects the commit. CI then runs `npm run format:check`
+  and `npm run lint` before anything else, so `git commit --no-verify` does not get
+  unformatted code to `main` — the hook is the convenience, CI is the gate. That is also
+  why `prepare` ends in `|| true`: `lefthook install` exits 128 outside a git repository,
+  and installing hooks must never be able to break `npm ci`.
+- `npm run lint` does _not_ run Prettier — `eslint-config-prettier` only disables the
+  ESLint rules that would conflict with it. `npm run format:check` is the command for
+  that, and `npm run format` / `npm run lint:fix` fix things from the console.
 - `eslint-plugin-perfectionist` (`recommended-natural`) is on: object keys, JSX props, interface members, imports and exports must be sorted naturally. `perfectionist/sort-classes` is disabled, so class members are free-form. Lint runs with `--max-warnings 0`, so a stray unsorted prop fails the build.
 - Styling is Tailwind utility classes inline; `src/index.css` is a Tailwind import with `@source not` directives excluding prose files to prevent dead utility classes (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).
 - The README's TODO list is the roadmap (fill/line/rect tools, import/save, trimming empty space on export, faster brush switching).
