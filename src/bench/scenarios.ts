@@ -76,6 +76,7 @@ export function filledViewport(
   theme: Theme,
   viewport: Viewport,
   drawnCells?: number,
+  spread: 'cluster' | 'even' = 'even',
 ): Scene {
   const scene = new Scene()
   const bounds = visibleBounds(
@@ -92,11 +93,26 @@ export function filledViewport(
 
   let i = 0
 
-  for (let y = bounds.minY; y <= bounds.maxY; y++) {
-    for (let x = bounds.minX; x <= bounds.maxX; x++) {
-      if (i++ % every !== 0) continue
+  if (spread === 'cluster' && drawnCells !== undefined) {
+    // One compact patch, which is what a drawing looks like when it is
+    // smaller than the screen showing it. The even spread above is the
+    // other extreme: the same few cells scattered over the whole viewport.
+    const side = Math.ceil(Math.sqrt(drawnCells))
 
-      changes.push({ value: BENCH_EMOJI[i % BENCH_EMOJI.length], x, y })
+    for (let y = bounds.minY; y < bounds.minY + side; y++) {
+      for (let x = bounds.minX; x < bounds.minX + side; x++) {
+        if (i >= drawnCells) break
+
+        changes.push({ value: BENCH_EMOJI[i++ % BENCH_EMOJI.length], x, y })
+      }
+    }
+  } else {
+    for (let y = bounds.minY; y <= bounds.maxY; y++) {
+      for (let x = bounds.minX; x <= bounds.maxX; x++) {
+        if (i++ % every !== 0) continue
+
+        changes.push({ value: BENCH_EMOJI[i % BENCH_EMOJI.length], x, y })
+      }
     }
   }
 
@@ -118,6 +134,8 @@ export function frameScenario(options: {
   dpr?: number
   /** How many cells are actually drawn; every visible one by default. */
   drawnCells?: number
+  /** Whether those cells sit in one patch or are scattered over the view. */
+  spread?: 'cluster' | 'even'
   theme?: Theme
   viewport?: Viewport
 }): { cells: number; draw: () => void } {
@@ -125,7 +143,13 @@ export function frameScenario(options: {
   const viewport = options.viewport ?? DESKTOP_VIEWPORT
   const dpr = options.dpr ?? 1
   const camera = cameraForCellSize(theme, options.cellSizePx)
-  const scene = filledViewport(camera, theme, viewport, options.drawnCells)
+  const scene = filledViewport(
+    camera,
+    theme,
+    viewport,
+    options.drawnCells,
+    options.spread,
+  )
   const ctx = createSurface(viewport, dpr)
   const atlas = new GlyphAtlas(dpr, theme.fontStack)
   const draw = () => {

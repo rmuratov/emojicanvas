@@ -99,6 +99,12 @@ test('a full screen against a sparse one at minimum zoom', async ({
     drawnCells: 500,
     viewport: DESKTOP_VIEWPORT,
   })
+  const clustered = frameScenario({
+    cellSizePx: MIN_ZOOM_CELL_PX,
+    drawnCells: 500,
+    spread: 'cluster',
+    viewport: DESKTOP_VIEWPORT,
+  })
   const empty = frameScenario({
     cellSizePx: MIN_ZOOM_CELL_PX,
     drawnCells: 1,
@@ -109,8 +115,11 @@ test('a full screen against a sparse one at minimum zoom', async ({
     bench(`full, ${full.cells} cells drawn`, () => {
       full.draw()
     }),
-    bench(`sparse, ${sparse.cells} cells drawn`, () => {
+    bench(`scattered over the view, ${sparse.cells} cells drawn`, () => {
       sparse.draw()
+    }),
+    bench(`in one patch, ${clustered.cells} cells drawn`, () => {
+      clustered.draw()
     }),
     bench(`almost empty, ${empty.cells} cells drawn`, () => {
       empty.draw()

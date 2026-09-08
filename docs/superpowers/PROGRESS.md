@@ -92,7 +92,17 @@ string per block. The block level now writes one pixel per block into a buffer a
 on screen with a single scaled `drawImage`, nearest-neighbour, limited to the part of the
 grid anything was drawn into. In headless Chromium the same frame went 15.9ms → 8.6ms, and
 block count stopped mattering: ten times wider blocks now measure the same. An almost empty
-screen at minimum zoom stays at 0.09ms and a 500-cell drawing costs 0.62ms.
+screen at minimum zoom stays at 0.09ms.
+
+**The blit costs what it covers, not what is drawn into it**, and that is the one shape it
+made slower. Measured against the old renderer on identical fixtures: one cell 0.08 → 0.10ms,
+five hundred cells in one patch 0.13 → 0.11ms, five hundred cells scattered evenly over the
+whole zoomed-out screen 0.22 → 0.62ms, a full screen 15.7 → 8.6ms. Only the scattered shape
+regressed, because the rectangle of filled blocks is then the whole screen and a
+screen-sized blit pays for five hundred pixels. It is 4% of the frame budget, against half
+the budget saved in the case that was actually failing, so the trade stands; a hybrid that
+fills blocks individually below some count would remove it at the cost of a second drawing
+mechanism. Both shapes are benchmarked in `lod.bench.ts` so the trade stays visible.
 
 **Re-measured in the same Safari afterwards: that frame went 20ms → 9ms and every scenario
 now passes** — 5ms for a full screen at 1x zoom, 9ms at minimum zoom with 136,220 cells,

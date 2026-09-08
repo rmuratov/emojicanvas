@@ -196,6 +196,16 @@ function cellCount(bounds: CellBounds): number {
  * `sparse` picks which side to walk: the scene's own cells when the drawing
  * is smaller than the viewport, the viewport when it is not. Both fill the
  * same sums and produce the same image.
+ *
+ * The blit costs what it covers, not what was drawn into it, which is the
+ * one place this is slower than a fill per block: five hundred cells
+ * scattered over a whole zoomed-out screen make the filled rectangle the
+ * screen, and cost 0.62ms against 0.22ms. The same five hundred cells in one
+ * patch — what a drawing actually looks like — cost 0.11ms against 0.13ms,
+ * and a full screen costs 8.6ms against 15.7ms. The trade is deliberate:
+ * the case that got slower is 4% of the frame budget and the case that got
+ * faster was the whole of it. Both shapes are in `lod.bench.ts` so the trade
+ * stays visible.
  */
 function drawBlocks(
   ctx: CanvasRenderingContext2D,
