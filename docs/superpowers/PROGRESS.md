@@ -3,7 +3,7 @@
 Cross-session status log. Read together with the spec
 `specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Updated: 2026-09-07.
+Updated: 2026-09-08.
 
 ## Where we are
 
@@ -14,13 +14,13 @@ All work happens on a single branch, **`foundation`** (44 commits), to be merged
 | Plan | Status |
 |---|---|
 | 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`) | **Done**, reviewed |
-| 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed, 3 findings left open on purpose |
+| 2. Engine core (`plans/2026-09-07-engine-core.md`) | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
 | 3. Rendering, input, editor facade, React port | **Plan not written** — next step |
 
 ## What already works
 
 `npm ci`, `npm run lint` (`--max-warnings 0`), `npm test`, `npm run build` — all green
-from a clean state. **102 tests across 10 files.**
+from a clean state. **105 tests across 10 files.**
 
 The app in the browser is untouched: it still runs the OLD engine
 (`src/lib/EmojiCanvas.ts`) and looks and behaves exactly as it did before this work
@@ -63,31 +63,35 @@ for this reason: it was a second, non-undoable path, and `Editor.clear()` would 
 made clearing the one action undo could not reverse. Clearing is now
 `createClearOperation`.
 
+**A serialised scene with no `version` is version 1.** `fromJSON` rejects a *stated*
+version it does not understand — a future format may not be readable at all — but an
+absent one is read as version 1, because the cell shape has never changed and only the
+envelope gained the field. Rejecting it would have discarded a drawing this build
+understands perfectly well, contradicting the resilience the same docstring promises.
+
 **The eraser is a real tool, not "a brush painting filler".** It writes `undefined`,
 which deletes the cell. The filler exists only in the text export, so there is no
 "erasing mode" anywhere in the model.
 
 ## Open findings from plan 2's final review
 
-These are deliberately left open. The first two are worth fixing before plan 3 builds
-on them.
+Findings 1 and 2 are now closed (commits `65a2fcc`, `0523400`). Finding 3 remains open
+on purpose.
 
-1. **`onCancel` is untested in effect.** Verified by mutation: making both `onCancel`
-   bodies no-ops leaves all 16 relevant tests green. Every test calls `onDown` again
-   before the next `onMove`, and `onDown` overwrites the stale state independently. The
-   missing case is the one that matters — `onMove` directly after `onCancel`, with no
-   `onDown` between, which is exactly what the input layer will do when a pinch ends.
-   The production code is correct; only its proof is missing.
-2. **`fromJSON` treats a missing `version` like a corrupt payload.** Both return an
-   empty scene. Since the cell shape never changed and only the envelope gained a
-   field, an absent version could safely be read as version 1. Nothing has been
-   persisted yet, so this is not a live bug — but decide it before link-sharing ships,
-   because it contradicts the resilience the same docstring promises.
+1. ~~`onCancel` is untested in effect.~~ **Closed.** Each tool gained a test that calls
+   `onMove` directly after `onCancel` with no `onDown` between — the case the input
+   layer will hit when a pinch ends. Re-verified by mutation: with both `onCancel`
+   bodies emptied, only these two tests fail and the other 13 stay green, so they do
+   prove what the old ones did not.
+2. ~~`fromJSON` treats a missing `version` like a corrupt payload.~~ **Closed** — see
+   the settled decision above. An absent version now reads as version 1; a stated
+   version this build does not understand is still rejected.
 3. **The reverse-direction line test proves less than its name claims.** Brute force
    over all integer pairs in [-5,5]² shows 31% of pairs violate
    `cellsBetween(b,a) === reverse(cellsBetween(a,b))` — for example
    `(-5,-5)→(-4,-3)`. The chosen endpoints happen to satisfy it, so the test is stable,
-   but it asserts a property this implementation does not universally have.
+   but it asserts a property this implementation does not universally have. Not a
+   blocker for plan 3: nothing depends on the symmetry, only the test's name overclaims.
 
 ## Deferred findings from plan 1
 
@@ -130,7 +134,7 @@ None block work. Address before merging `foundation` into `main`.
 
 ## How to continue
 
-Write plan 3 from the spec's "Rendering", "Input and tools", "editor/Editor.ts",
-"React shell", "Mobile devices" and "Performance" sections, then execute it one task at
-a time with review between tasks. Consider clearing open findings 1 and 2 above first —
-both are small, and plan 3 builds directly on that code.
+Findings 1 and 2 are cleared, so the code plan 3 builds on is proven. Next: write plan 3
+from the spec's "Rendering", "Input and tools", "editor/Editor.ts", "React shell",
+"Mobile devices" and "Performance" sections, then execute it one task at a time with
+review between tasks.
