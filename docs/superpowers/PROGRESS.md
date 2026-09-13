@@ -3,8 +3,8 @@
 Cross-session status log. Read together with the spec
 `specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Updated: 2026-09-13. All four plans are done and the thresholds are confirmed on a real
-phone. What is left is the mobile layout check and the merge into `main`.
+Updated: 2026-09-13. All four plans are done, the thresholds are confirmed on a real
+phone and the layout has been checked on it. The branch is ready to merge into `main`.
 
 ## Where we are
 
@@ -278,8 +278,12 @@ Nothing here blocks plan 4.
 4. **Loading a scene from a link or file.** When it lands, `Editor` must call
    `history.clear()` — undo would otherwise walk into a scene the operations were never
    recorded against. Nothing loads a scene today, so `Editor` has no load path at all.
-5. **Mobile layout was checked only on a desktop viewport.** The toolbar-versus-picker
-   overlap and the 44px tap targets still want a real device.
+5. ~~**Mobile layout was checked only on a desktop viewport.**~~ **Checked on an iPhone 16
+   on 2026-09-13.** Everything works: one finger draws, two navigate, zoom clamps, the page
+   itself does not scroll or zoom. The layout is usable but the UX is poor, and that is
+   accepted for now by decision — the redesign is its own piece of work, and the point of
+   this branch was the engine underneath it, which is what makes rearranging the shell
+   cheap.
 
 ## Invariants the code now holds
 
@@ -331,20 +335,17 @@ Both are recorded rather than fixed, and neither blocks the merge.
 
 ## How to continue
 
-All four plans are done, the app runs on the new engine, and the thresholds are confirmed
-on a phone. What remains:
+The foundation is finished: all four plans are done, the app runs on the new engine, the
+thresholds are confirmed on a phone, and the phone check of the layout is done. Nothing
+in this log blocks the merge, and the merge into `main` is the last step of this work.
 
-1. **Check the mobile layout on the phone** — item 5 of "Deferred out of plan 3": the
-   toolbar-versus-picker overlap in portrait and landscape, and the 44px tap targets.
-   `npm run dev`, then open `http://<lan-ip>:5173/emojicanvas/` on the device. The
-   measurement page is at `/bench.html` under the same base path if anything needs
-   re-measuring; if a scenario ever comes back over budget, investigate it — do not raise
-   the threshold to make it fit.
-2. **Merge `foundation` into `main`.** Nothing is pushed and `main` still sits at
-   `a11e969`.
+What comes after is feature work on top of the engine, in whatever order the README's
+TODO list and the UX redesign dictate. The measurement page stays at `/bench.html`
+under the base path; if a scenario ever comes back over budget, investigate it — do not
+raise the threshold to make it fit.
 
-Also still open, and unchanged by plan 4: the five items under "Deferred out of plan 3"
-and the two findings above. Every finding from plans 1 and 2 is closed.
+Also still open: the first four items under "Deferred out of plan 3" and the two findings
+from plan 4. Every finding from plans 1 and 2 is closed.
 
 ## Starting the next session
 
