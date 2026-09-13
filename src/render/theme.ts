@@ -62,6 +62,12 @@ export type Theme = {
  * A real drawing is sparser and costs far less, because the renderer walks
  * whichever is smaller, the drawing or the viewport. A benchmark regression
  * is a reason to investigate, not to raise a threshold.
+ *
+ * Confirmed on a phone via `bench.html`: an iPhone 16 (iOS 18.7, Safari 26.6,
+ * 393x695 CSS px at device pixel ratio 3) drew a full screen at 1x zoom in
+ * 4ms, a full screen at minimum zoom with 30,392 cells in 4ms and the
+ * ordinary 500-cell drawing at minimum zoom in 2ms. Safari's timer rounds to
+ * whole milliseconds, so those are ceilings, not exact values.
  */
 export const DEFAULT_THEME: Theme = {
   antialias: true,

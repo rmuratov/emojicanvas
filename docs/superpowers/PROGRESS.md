@@ -3,8 +3,8 @@
 Cross-session status log. Read together with the spec
 `specs/2026-09-07-foundation-design.md` — it remains the authority on design intent.
 
-Updated: 2026-09-08. All four plans are done. What is left is a measurement on a real
-phone and the merge into `main`.
+Updated: 2026-09-13. All four plans are done and the thresholds are confirmed on a real
+phone. What is left is the mobile layout check and the merge into `main`.
 
 ## Where we are
 
@@ -18,7 +18,7 @@ exactly. Verified from a clean `npm ci` on 2026-09-08: `npm run lint`,
 | 1. Toolchain and test infrastructure (`plans/2026-09-07-toolchain-and-tests.md`)              | **Done**, reviewed                                       |
 | 2. Engine core (`plans/2026-09-07-engine-core.md`)                                            | **Done**, reviewed; findings 1 and 2 closed, 1 left open |
 | 3. Rendering, input, editor facade, React port (`plans/2026-09-08-rendering-input-editor.md`) | **Done**; all 8 tasks executed                           |
-| 4. Performance (`plans/2026-09-08-performance.md`)                                            | **Done**, except the measurement on a real phone         |
+| 4. Performance (`plans/2026-09-08-performance.md`)                                            | **Done**, confirmed on a phone                           |
 
 ## What already works
 
@@ -331,19 +331,15 @@ Both are recorded rather than fixed, and neither blocks the merge.
 
 ## How to continue
 
-All four plans are done and the app runs on the new engine. What remains:
+All four plans are done, the app runs on the new engine, and the thresholds are confirmed
+on a phone. What remains:
 
-1. **Measure on a real phone.** `npm run dev`, then open the printed network address with
-   `/bench.html` on the device (the base path applies:
-   `http://<lan-ip>:5173/emojicanvas/bench.html`) and press Measure. The page prints each
-   scenario against its budget with PASS or OVER BUDGET, plus the viewport and the device
-   pixel ratio. Everything so far was measured on a MacBook — headless Chromium, and
-   desktop Safari 26 at 1470x833 and DPR 2, where all four scenarios pass with the worst
-   at 9ms of 16.7ms. A phone is slower per core and usually runs at DPR 3, so that is the
-   measurement that can still move a threshold. If a scenario comes
-   back over budget, investigate it — do not raise the threshold to make it fit. Do this
-   in the same session as item 5 of "Deferred out of plan 3", the mobile layout check:
-   both need the same device in hand.
+1. **Check the mobile layout on the phone** — item 5 of "Deferred out of plan 3": the
+   toolbar-versus-picker overlap in portrait and landscape, and the 44px tap targets.
+   `npm run dev`, then open `http://<lan-ip>:5173/emojicanvas/` on the device. The
+   measurement page is at `/bench.html` under the same base path if anything needs
+   re-measuring; if a scenario ever comes back over budget, investigate it — do not raise
+   the threshold to make it fit.
 2. **Merge `foundation` into `main`.** Nothing is pushed and `main` still sits at
    `a11e969`.
 
