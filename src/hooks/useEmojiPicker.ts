@@ -1,20 +1,28 @@
-import { Picker } from 'emoji-picker-element'
-import { RefObject, useEffect } from 'react'
+import type { Picker } from 'emoji-picker-element'
+import type { EmojiClickEvent } from 'emoji-picker-element/shared'
+import type { RefObject } from 'react'
+
+import { useEffect } from 'react'
 
 export function useEmojiPicker(
-  ref: RefObject<Picker>,
+  ref: RefObject<null | Picker>,
   onEmojiClick?: (emojiCode: string) => void,
 ) {
-  // TODO: Fix adding meaningless callback
   useEffect(() => {
-    if (ref.current && onEmojiClick) {
-      ref.current.addEventListener('emoji-click', event => {
-        if (!event.detail.unicode) return
+    const picker = ref.current
 
-        console.log(onEmojiClick)
+    if (!picker || !onEmojiClick) return
 
-        onEmojiClick(event.detail.unicode)
-      })
+    // The package declares its own event type on the element; using ours
+    // would not match the addEventListener overload it contributes.
+    const handle = (event: EmojiClickEvent) => {
+      if (!event.detail.unicode) return
+
+      onEmojiClick(event.detail.unicode)
     }
+
+    picker.addEventListener('emoji-click', handle)
+
+    return () => picker.removeEventListener('emoji-click', handle)
   }, [onEmojiClick, ref])
 }

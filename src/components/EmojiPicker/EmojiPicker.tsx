@@ -3,6 +3,11 @@ import { useRef } from 'react'
 
 import { useEmojiPicker } from '../../hooks'
 
+export interface IEmojiPickerProps {
+  isHidden?: boolean
+  onEmojiClick?: (emojiCode: string) => void
+}
+
 export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
   const ref = useRef<Picker>(null)
 
@@ -14,13 +19,7 @@ export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
         isHidden ? 'hidden' : ''
       }`}
     >
-      {/*@ts-ignore*/}
       <emoji-picker class="light w-full" ref={ref} />
     </div>
   )
-}
-
-export interface IEmojiPickerProps {
-  isHidden?: boolean
-  onEmojiClick?: (emojiCode: string) => void
 }

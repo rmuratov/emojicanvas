@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EmojiCanvas performance</title>
+  </head>
+  <body style="font: 14px/1.5 system-ui; margin: 1rem">
+    <h1 style="font-size: 1rem">EmojiCanvas performance</h1>
+    <p>
+      Measures the render paths against the 16.7ms frame budget on this device.
+      Development only: this page is not part of the production build.
+    </p>
+    <button id="run" style="font: inherit; min-height: 44px; padding: 0 1rem">
+      Measure
+    </button>
+    <pre id="results" style="white-space: pre-wrap"></pre>
+    <script type="module" src="/src/bench/main.ts"></script>
+  </body>
+</html>

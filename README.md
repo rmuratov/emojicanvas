@@ -21,22 +21,28 @@ npm run dev
 - [x] Clear action
 - [x] Eraser
 - [x] Export/Copy tool
+- [x] Better alignment of emojis
+- [x] Option to trim surrounding empty space while exporting
+- [x] Undo/redo
+- [x] Pan and zoom on an unbounded canvas
 - [ ] Fast switch back to current brush (do not open picker every time)
 - [ ] More tools: fill, line, rectangle, circle
-- [ ] Better alignment of emojis. [See details](#better-positioning-on-the-canvas).
 - [ ] Better solution for filler. [See details](#filler).
 - [ ] Import/Save.
-- [ ] Option to trim surrounding empty space while exporting.
 
-### Better positioning on the canvas
+### Positioning on the canvas
 
-Right now, the drawing looks acceptable only on desktop browsers on macOS (Apple-style emojis). On other OSes, emojis might have different widths and heights; hence, they can overflow their cells, and the overall painting would look ugly. A better approach should be implemented to address these inconsistencies (meaning, preferably, no hard-coded imperative by-pixel positioning).
+This used to look acceptable only on macOS, where the Apple emoji metrics happened to
+match the hard-coded per-glyph pixel nudges; elsewhere glyphs overflowed their cells.
+Each glyph is now measured and centred on its own bounding box, and shrunk if it would not
+fit, so no by-pixel constants are involved and emoji with a variation selector line up
+with native ones.
 
 ### Filler
 
 As emoji artists, we want to leave empty spaces in our drawings. At the same time, we want to preserve the position of every other emoji on our canvas. We need something that has the same width as an emoji, but invisible. What should be used to represent empty spaces?
 
-* Space. The obvious option, but unfortunately messaging apps trim them, so our art falls apart.
-* Some other invisible symbol. I tried a lot, and [Halfwidth Hangul Filler](https://www.compart.com/en/unicode/U+FFA0) repeated three times was the closest to the desired behavior but not ideal. Maybe I should examine more such symbols and their combinations.
-* Other emoji symbol, that do not occupy much space. This is where I stop. Right now, EmojiCanvas uses 〰️ as a filler. It could use ➖, but 〰️ looks funnier.
-ﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠ
+- Space. The obvious option, but unfortunately messaging apps trim them, so our art falls apart.
+- Some other invisible symbol. I tried a lot, and [Halfwidth Hangul Filler](https://www.compart.com/en/unicode/U+FFA0) repeated three times was the closest to the desired behavior but not ideal. Maybe I should examine more such symbols and their combinations.
+- Other emoji symbol, that do not occupy much space. This is where I stop. Right now, EmojiCanvas uses 〰️ as a filler. It could use ➖, but 〰️ looks funnier.
+  ﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠﾠ
