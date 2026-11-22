@@ -19,6 +19,13 @@ Node.js and Chromium suites, or `npm run test:coverage` for the same suites with
 The HTML report is written to `coverage/index.html`. CI requires 100% statement, branch,
 function, and line coverage across the application source.
 
+### Benchmarks
+
+Run `npm run bench` to measure rendering and strokes in Chromium. With `npm run dev` running,
+open [the benchmark page](http://localhost:5173/emojicanvas/bench.html) to run the same
+scenarios in another browser or on a phone using the Vite network address.
+[The renderer theme](src/render/theme.ts) records the measurements behind its zoom thresholds.
+
 ## Drawing tools
 
 Choose an emoji from the palette or open **More emojis**. The brush and eraser support 1×1,
