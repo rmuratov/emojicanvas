@@ -1,13 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Ongoing work
-
-A multi-plan rework of the drawing engine is in progress on the `foundation` branch.
-Before starting anything, read `docs/superpowers/PROGRESS.md` — it records what is done,
-which decisions are settled and must not be relitigated, and what comes next. The design
-authority is `docs/superpowers/specs/2026-09-07-foundation-design.md`.
+This file provides guidance for coding agents working in this repository.
 
 ## Commands
 
@@ -20,6 +13,7 @@ npm run lint:fix # eslint src --fix
 npm run format       # prettier --write .
 npm run format:check # prettier --check . (what CI runs)
 npm test         # vitest run: a `node` project (pure logic in src/core, src/tools) and a `browser` project (Playwright + Chromium)
+npm run test:coverage # both test projects with the same coverage thresholds as CI
 npm run bench    # vitest bench --reporter=verbose: `*.bench.ts` in the browser project, never part of `npm test` or CI
 npm run preview  # serve the production build
 ```
@@ -28,6 +22,9 @@ npm run preview  # serve the production build
 `http://localhost:5173/emojicanvas/bench.html` (and at the printed network address, for a
 real phone) that runs the same scenarios as the benchmarks in whatever browser opens it.
 It is not listed in `build.rollupOptions.input`, so it never reaches `dist/`.
+The benchmark scenarios read back a pixel with `getImageData` so the timings include
+canvas rasterization. CI exercises the renderer's draw-call budget separately in
+`src/render/drawBudget.test.ts`.
 
 Run `npm test`, `npm run lint` and `npm run build` before claiming a change works.
 
@@ -57,8 +54,8 @@ while everything else runs in real Chromium.
 - `src/input/pointer.ts` — Pointer Events for mouse, finger and stylus in one path.
   Reports **screen pixels**, never cells: the camera lives in the `Editor`, so the `Editor`
   does the conversion.
-- `src/tools/` — a `Tool` is `onDown`/`onMove`/`onUp`/`onCancel`. Tools write through a
-  `StrokeRecorder` and never touch history.
+- `src/tools/` — a `Tool` handles pointer gestures and reports cells for the hover preview.
+  Tools write through a `StrokeRecorder` and never touch history.
 - `src/editor/Editor.ts` — the facade that assembles the layers and owns their lifecycle:
   the canvas element, the `ResizeObserver`, the `requestAnimationFrame` loop, the camera
   and the tools. `destroy()` undoes everything the constructor set up.
@@ -68,8 +65,8 @@ while everything else runs in real Chromium.
   `useEmojiPicker` attaches and removes its `emoji-click` listener. The tag is typed in
   `src/types/emoji-picker.d.ts`.
 
-Components live in `src/components/<Name>/<Name>.tsx` with an `index.ts` barrel; `src/hooks`,
-`src/core`, `src/render`, `src/input` and `src/editor` re-export through barrels too.
+Components live in `src/components/<Name>/<Name>.tsx` with an `index.ts` barrel. The hooks,
+renderer, pointer input, and editor also expose barrel exports.
 Imports use relative paths (no path aliases).
 
 ### Three ideas that drive the code
@@ -77,7 +74,8 @@ Imports use relative paths (no path aliases).
 **Every write to the scene goes through an operation.** That is what makes undo total.
 There is deliberately no `Scene.clear()` — clearing is `createClearOperation`, so it is
 undoable like anything else. Only `operations.ts` and `StrokeRecorder` call
-`scene.writeCell`.
+`scene.writeCell`. When adding file or link import, clear the undo and redo history upon
+replacing the scene so old operations cannot affect the imported drawing.
 
 **The filler is an export-only concept.** Empty cells hold nothing; the scene simply has no
 key for them. `〰️` (`DEFAULT_FILLER` in `core/export/text.ts`) is written into the _text_
@@ -86,9 +84,8 @@ and that destroys the art on paste. Consequently **the eraser is a real tool tha
 cells**, not "a brush painting the filler", and there is no erasing mode anywhere in the
 model.
 
-**Frame cost follows the smaller of the window and the drawing.** The canvas is created at
-the size of its container, which removes the browser's canvas-area limit and means a scene
-with a million cells renders in the same time as one with a hundred. Only cells inside
+**Frame cost follows the smaller of the window and the drawing.** The canvas matches the
+viewport size, so drawing bounds can grow beyond the canvas buffer. Only cells inside
 `camera.visibleBounds` are drawn, and the renderer walks whichever side is smaller: the
 viewport when the drawing is bigger than it, the scene's own cells when it is not. Scanning
 the viewport costs a lookup — and the string key it builds — per visible cell, which at
@@ -99,9 +96,9 @@ them. The block level of detail reaches the canvas as **one** scaled `drawImage`
 one-pixel-per-block buffer, not as a fill per block: filling thirty thousand blocks
 separately cost half the frame, most of it building an `rgb(...)` string per block.
 
-`scene.bounds()` is an O(n) scan of every drawn cell — it is for text export, never for a
-frame, and never for `getSnapshot`, which uses `scene.size === 0` because
-`useSyncExternalStore` calls it on every render.
+`scene.bounds()` scans all drawn cells. Fit-to-view, text export, and flood fill use it.
+`getSnapshot` uses `scene.size === 0` so React can check whether the drawing is empty in
+constant time.
 
 Glyphs are centred on their own measured bounding box, so emoji with a variation selector
 (`❤️` = U+2764 U+FE0F) and native ones (`😀` = U+1F600) line up. The old hard-coded
@@ -109,18 +106,18 @@ per-glyph pixel nudges are gone.
 
 ## Conventions
 
-- **Everything inside the repo is written in English** — code, identifiers, comments, test names, commit messages, and the documents under `docs/`. No exceptions: the spec and the plans were once written in Russian, test names were copied out of a plan into the repo verbatim, and the fix was to translate the documents rather than to keep translating on the fly.
+- Write code, comments, tests, documentation, and commit messages in English.
 - Prettier: no semicolons, single quotes, trailing commas, `arrowParens: 'avoid'`, 80 cols.
 - **Formatting is enforced twice: on commit and in CI.** `lefthook.yml` runs
   `eslint --fix` then `prettier --write` over staged files and re-stages what they
   repair; an error neither can fix rejects the commit. CI then runs `npm run format:check`
-  and `npm run lint` before anything else, so `git commit --no-verify` does not get
-  unformatted code to `main` — the hook is the convenience, CI is the gate. That is also
-  why `prepare` ends in `|| true`: `lefthook install` exits 128 outside a git repository,
-  and installing hooks must never be able to break `npm ci`.
+  and `npm run lint` before the browser tests. The `prepare` script treats hook installation
+  as optional so that `npm ci` also works outside a Git checkout.
 - `npm run lint` does _not_ run Prettier — `eslint-config-prettier` only disables the
   ESLint rules that would conflict with it. `npm run format:check` is the command for
   that, and `npm run format` / `npm run lint:fix` fix things from the console.
 - `eslint-plugin-perfectionist` (`recommended-natural`) is on: object keys, JSX props, interface members, imports and exports must be sorted naturally. `perfectionist/sort-classes` is disabled, so class members are free-form. Lint runs with `--max-warnings 0`, so a stray unsorted prop fails the build.
-- Styling is Tailwind utility classes inline; `src/index.css` is a Tailwind import with `@source not` directives excluding prose files to prevent dead utility classes (Tailwind 4 — configuration lives in CSS, not `tailwind.config.js`).
-- The README's TODO list is the roadmap (fill/line/rect tools, import/save, trimming empty space on export, faster brush switching).
+- The `eslint-plugin-react` override in `package.json` resolves its ESLint peer range with
+  the installed ESLint version.
+- The interface styles and Tailwind configuration live in `src/index.css`.
+- See the roadmap in the README.
