@@ -113,3 +113,14 @@ describe('createBrushTool', () => {
     expect(committed!.op.changes).toHaveLength(3)
   })
 })
+
+it('keeps a stationary pointer from adding a second change', () => {
+  const ctx = context()
+  const brush = createBrushTool()
+  const cell = { x: 3, y: 4 }
+
+  brush.onDown(cell, ctx)
+  brush.onMove(cell, ctx)
+
+  expect(ctx.recorder.commit(brush.id)?.op.changes).toHaveLength(1)
+})

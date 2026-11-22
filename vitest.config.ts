@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    coverage: {
+      exclude: ['src/bench/**', '**/*.{bench,test}.{ts,tsx}', '**/*.d.ts'],
+      include: ['src/**/*.{ts,tsx}'],
+      provider: 'istanbul',
+      reporter: ['text', 'html', 'json'],
+      thresholds: { 100: true },
+    },
     projects: [
       {
         test: {
@@ -16,6 +23,7 @@ export default defineConfig({
         },
       },
       {
+        optimizeDeps: { include: ['emoji-picker-element', 'react-dom/client'] },
         test: {
           benchmark: {
             exclude: ['src/{core,tools}/**/*.bench.ts'],

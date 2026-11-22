@@ -147,3 +147,13 @@ describe('GlyphAtlas', () => {
     expect(buffer.width).toBe(step * 2)
   })
 })
+
+it('renders a blank glyph and retains the full scale of narrow ink', () => {
+  const cache = atlas()
+  const blank = cache.get(' ', 16)
+  const thin = cache.get('.', 16)
+
+  expect(cache.averageColorRgb(' ')).toEqual([0, 0, 0])
+  expect(opaquePixels(blank, 16).count).toBe(0)
+  expect(opaquePixels(thin, 16).count).toBeGreaterThan(0)
+})
