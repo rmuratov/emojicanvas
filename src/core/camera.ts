@@ -30,12 +30,36 @@ export function cellToScreen(
   }
 }
 
-export function clampZoom(zoom: number): number {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+export function clampZoom(zoom: number, minZoom = MIN_ZOOM): number {
+  return Math.min(MAX_ZOOM, Math.max(minZoom, zoom))
 }
 
 export function createCamera(): Camera {
   return { offsetX: 0, offsetY: 0, zoom: 1 }
+}
+
+/** Centers the drawing in the viewport with room around its outer cells. */
+export function fitBounds(
+  bounds: CellBounds,
+  baseCellSize: number,
+  width: number,
+  height: number,
+): Camera {
+  const columns = bounds.maxX - bounds.minX + 1
+  const rows = bounds.maxY - bounds.minY + 1
+  const padding = Math.min(24, Math.min(width, height) / 10)
+  const zoom = Math.min(
+    MAX_ZOOM,
+    (width - padding * 2) / (columns * baseCellSize),
+    (height - padding * 2) / (rows * baseCellSize),
+  )
+  const size = cellSizeAt(baseCellSize, zoom)
+
+  return {
+    offsetX: (bounds.minX + columns / 2) * size - width / 2,
+    offsetY: (bounds.minY + rows / 2) * size - height / 2,
+    zoom,
+  }
 }
 
 /**
@@ -99,7 +123,9 @@ export function zoomAt(
   anchorPx: number,
   anchorPy: number,
 ): Camera {
-  const zoom = clampZoom(camera.zoom * factor)
+  // Fitting a large drawing can go below MIN_ZOOM. Zooming back in from
+  // that view still advances by the requested factor.
+  const zoom = clampZoom(camera.zoom * factor, Math.min(MIN_ZOOM, camera.zoom))
   const ratio = zoom / camera.zoom
 
   return {

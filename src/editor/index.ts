@@ -1,2 +1,2 @@
 export { Editor } from './Editor'
-export type { EditorState } from './Editor'
+export type { BrushSize, EditorState } from './Editor'

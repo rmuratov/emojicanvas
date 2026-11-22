@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
 
 import { App } from './App'
+import '../../index.css'
 
 describe('App', () => {
   it('renders a canvas', async () => {
@@ -23,6 +24,62 @@ describe('App', () => {
     await expect
       .element(screen.getByRole('button', { name: 'Redo' }))
       .toBeDisabled()
+  })
+
+  it('fits a drawing from the zoom toolbar once the canvas has content', async () => {
+    const screen = await render(<App />)
+    const fit = screen.getByRole('button', { name: 'Fit drawing' })
+
+    await expect.element(fit).toBeDisabled()
+    await screen.getByLabelText('Drawing canvas').click()
+    await expect.element(fit).toBeEnabled()
+    await fit.click()
+    await expect
+      .element(screen.getByText('400%', { exact: true }))
+      .toBeVisible()
+    await screen.getByRole('button', { name: 'Reset view' }).click()
+    await expect
+      .element(screen.getByText('100%', { exact: true }))
+      .toBeVisible()
+  })
+
+  it('uses a different cursor for each tool only over the canvas', async () => {
+    const screen = await render(<App />)
+    const canvas = screen.getByLabelText('Drawing canvas')
+    const cursors = new Set<string>()
+
+    for (const name of [
+      'Brush',
+      'Eraser',
+      'Fill',
+      'Line',
+      'Rectangle',
+      'Ellipse',
+      'Hand',
+    ]) {
+      const tool = screen.getByRole('button', { exact: true, name })
+
+      await tool.click()
+      await expect.element(tool).toHaveAttribute('aria-pressed', 'true')
+      expect(getComputedStyle(await tool.element()).cursor).toBe('pointer')
+      expect(getComputedStyle(await canvas.element()).cursor).toBe('auto')
+
+      await canvas.hover()
+      const cursor = getComputedStyle(await canvas.element()).cursor
+
+      const [, encodedSvg = ''] =
+        cursor.match(/data:image\/svg\+xml,([^"]+)/) ?? []
+      const svg = new DOMParser().parseFromString(
+        decodeURIComponent(encodedSvg),
+        'image/svg+xml',
+      )
+
+      expect(svg.querySelector('svg')?.children).toHaveLength(1)
+      expect(cursor).toMatch(name === 'Hand' ? /, grab$/ : /, default$/)
+      cursors.add(cursor)
+    }
+
+    expect(cursors.size).toBe(7)
   })
 
   it('never puts the string false into a class list', async () => {

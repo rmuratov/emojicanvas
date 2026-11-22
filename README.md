@@ -14,21 +14,20 @@ npm run dev
 # go to http://localhost:5173/emojicanvas/
 ```
 
-## TODO
+## Drawing tools
 
-- [x] Basic drawing
-- [x] Emoji picker
-- [x] Clear action
-- [x] Eraser
-- [x] Export/Copy tool
-- [x] Better alignment of emojis
-- [x] Option to trim surrounding empty space while exporting
-- [x] Undo/redo
-- [x] Pan and zoom on an unbounded canvas
-- [ ] Fast switch back to current brush (do not open picker every time)
-- [ ] More tools: fill, line, rectangle, circle
-- [ ] Better solution for filler. [See details](#filler).
-- [ ] Import/Save.
+Choose an emoji from the palette or open **More emojis**. The brush and eraser support 1×1,
+3×3, and 5×5 stamps. Drag to draw lines, rectangles, and ellipses. **Fill** replaces connected
+cells of the same emoji or fills a closed outline. Use the hand tool to pan, and **Copy text**
+to copy the drawing as emoji rows.
+
+## Roadmap
+
+- Save and reopen editable drawings.
+- Convert PNG and JPEG images into editable emoji mosaics. Downsample the source image to a
+  grid, match each sampled cell against a palette, and build a `Scene` for the existing canvas
+  renderer and text exporter.
+- Improve the filler used for empty cells in copied emoji art.
 
 ### Positioning on the canvas
 

@@ -2,6 +2,8 @@ import type { StrokeRecorder } from '../core/operations'
 import type { Scene } from '../core/scene'
 import type { Cell, Emoji } from '../core/types'
 
+export type PreviewContext = Omit<ToolContext, 'recorder'>
+
 /**
  * A tool turns pointer events, already expressed in grid cells, into writes
  * through the stroke recorder. Tools never touch history: the editor commits
@@ -18,15 +20,18 @@ export interface Tool {
    * before calling this method.
    */
   onCancel(ctx: ToolContext): void
-  onDown(cell: Cell, ctx: ToolContext): void
+  onDown(cell: Cell, ctx: ToolContext): string | void
 
   onMove(cell: Cell, ctx: ToolContext): void
 
   onUp(ctx: ToolContext): void
+
+  preview(cell: Cell, ctx: PreviewContext): readonly Cell[]
 }
 
 export type ToolContext = {
   brush: Emoji
+  brushSize?: number
   recorder: StrokeRecorder
   scene: Scene
 }

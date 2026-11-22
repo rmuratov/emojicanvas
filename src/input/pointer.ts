@@ -1,4 +1,5 @@
 export type PointerHandlers = {
+  isPanMode?(): boolean
   /**
    * The stroke in progress was abandoned rather than finished — a second
    * finger turned it into a gesture. The caller rolls the scene back; this
@@ -8,6 +9,7 @@ export type PointerHandlers = {
   onDrawEnd(): void
   onDrawMove(px: number, py: number): void
   onDrawStart(px: number, py: number): void
+  onHover?(point: null | Point): void
   /**
    * The pointer moved by (dx, dy) screen pixels and the content should
    * follow it. The camera moves the opposite way; that inversion belongs to
@@ -68,6 +70,25 @@ export function attachPointerInput(
     return { px: event.clientX - box.left, py: event.clientY - box.top }
   }
 
+  function onPointerHover(event: PointerEvent): void {
+    if (!handlers.onHover || active.size > 0 || event.pointerType === 'touch')
+      return
+
+    const box = el.getBoundingClientRect()
+    const px = event.clientX - box.left
+    const py = event.clientY - box.top
+
+    handlers.onHover(
+      px >= 0 && py >= 0 && px < box.width && py < box.height
+        ? { px, py }
+        : null,
+    )
+  }
+
+  function onPointerLeave(): void {
+    handlers.onHover?.(null)
+  }
+
   function pinchPoints(): [Point, Point] {
     const [first, second] = active.values()
 
@@ -75,6 +96,9 @@ export function attachPointerInput(
   }
 
   function onPointerDown(event: PointerEvent): void {
+    if (event.button !== 0 && event.button !== MIDDLE_BUTTON) return
+
+    handlers.onHover?.(null)
     active.set(event.pointerId, localPoint(event))
     el.setPointerCapture(event.pointerId)
 
@@ -98,7 +122,7 @@ export function attachPointerInput(
       return
     }
 
-    if (event.button === MIDDLE_BUTTON) {
+    if (event.button === MIDDLE_BUTTON || handlers.isPanMode?.()) {
       panningPointerId = event.pointerId
       return
     }
@@ -115,7 +139,10 @@ export function attachPointerInput(
   function onPointerMove(event: PointerEvent): void {
     const previous = active.get(event.pointerId)
 
-    if (!previous) return
+    if (!previous) {
+      onPointerHover(event)
+      return
+    }
 
     const point = localPoint(event)
 
@@ -153,6 +180,10 @@ export function attachPointerInput(
   }
 
   function onPointerUp(event: PointerEvent): void {
+    const previous = active.get(event.pointerId)
+
+    if (!previous) return
+
     active.delete(event.pointerId)
 
     if (el.hasPointerCapture(event.pointerId)) {
@@ -165,11 +196,25 @@ export function attachPointerInput(
 
     if (event.pointerId === drawingPointerId) {
       drawingPointerId = null
-      handlers.onDrawEnd()
+      if (
+        event.type === 'pointercancel' ||
+        event.type === 'lostpointercapture'
+      ) {
+        handlers.onDrawCancel()
+      } else {
+        const point = localPoint(event)
+
+        if (point.px !== previous.px || point.py !== previous.py) {
+          handlers.onDrawMove(point.px, point.py)
+        }
+
+        handlers.onDrawEnd()
+      }
     }
 
     if (active.size === 0) {
       suppressUntilAllUp = false
+      if (event.type === 'pointerup') onPointerHover(event)
     } else if (active.size === 1) {
       // Back to one finger after a pinch. Nothing is re-anchored and nothing
       // is drawn; suppressUntilAllUp keeps it that way.
@@ -196,15 +241,21 @@ export function attachPointerInput(
     handlers.onPan(-event.deltaX, -event.deltaY)
   }
 
+  el.addEventListener('lostpointercapture', onPointerUp)
   el.addEventListener('pointercancel', onPointerUp)
   el.addEventListener('pointerdown', onPointerDown)
+  el.addEventListener('pointerenter', onPointerHover)
+  el.addEventListener('pointerleave', onPointerLeave)
   el.addEventListener('pointermove', onPointerMove)
   el.addEventListener('pointerup', onPointerUp)
   el.addEventListener('wheel', onWheel, { passive: false })
 
   return () => {
+    el.removeEventListener('lostpointercapture', onPointerUp)
     el.removeEventListener('pointercancel', onPointerUp)
     el.removeEventListener('pointerdown', onPointerDown)
+    el.removeEventListener('pointerenter', onPointerHover)
+    el.removeEventListener('pointerleave', onPointerLeave)
     el.removeEventListener('pointermove', onPointerMove)
     el.removeEventListener('pointerup', onPointerUp)
     el.removeEventListener('wheel', onWheel)

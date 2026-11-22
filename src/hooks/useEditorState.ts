@@ -11,10 +11,12 @@ const NOTHING = () => () => {}
  */
 const EMPTY: EditorState = {
   brush: '❤️',
+  brushSize: 1,
   canRedo: false,
   canUndo: false,
   isEmpty: true,
   toolId: 'brush',
+  toolMessage: '',
   zoom: 1,
 }
 

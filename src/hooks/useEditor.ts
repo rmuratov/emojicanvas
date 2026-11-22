@@ -2,6 +2,8 @@ import type { RefObject } from 'react'
 
 import { useEffect, useState } from 'react'
 
+import type { Theme } from '../render/theme'
+
 import { Editor } from '../editor'
 
 /**
@@ -10,7 +12,10 @@ import { Editor } from '../editor'
  * useEmojiCanvas depended on state it set itself, and its cleanup closed
  * over the previous value, which is how a second canvas appeared.
  */
-export function useEditor(ref: RefObject<HTMLElement | null>): Editor | null {
+export function useEditor(
+  ref: RefObject<HTMLElement | null>,
+  theme?: Partial<Theme>,
+): Editor | null {
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -18,7 +23,7 @@ export function useEditor(ref: RefObject<HTMLElement | null>): Editor | null {
 
     if (!container) return
 
-    const instance = new Editor(container)
+    const instance = new Editor(container, { theme })
 
     setEditor(instance)
 
@@ -26,7 +31,7 @@ export function useEditor(ref: RefObject<HTMLElement | null>): Editor | null {
       setEditor(null)
       instance.destroy()
     }
-  }, [ref])
+  }, [ref, theme])
 
   return editor
 }

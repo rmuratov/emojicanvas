@@ -115,7 +115,7 @@ describe('attachPointerInput', () => {
     expect(handlers.onDrawEnd).toHaveBeenCalledTimes(1)
   })
 
-  it('ends the stroke when the pointer is cancelled by the system', () => {
+  it('abandons the stroke when the pointer is cancelled by the system', () => {
     const { el, handlers } = harness()
 
     el.dispatchEvent(
@@ -125,7 +125,8 @@ describe('attachPointerInput', () => {
       pointer('pointercancel', { clientX: 0, clientY: 0, pointerId: 1 }),
     )
 
-    expect(handlers.onDrawEnd).toHaveBeenCalledTimes(1)
+    expect(handlers.onDrawCancel).toHaveBeenCalledTimes(1)
+    expect(handlers.onDrawEnd).not.toHaveBeenCalled()
   })
 
   it('does not keep drawing after the stroke ended', () => {

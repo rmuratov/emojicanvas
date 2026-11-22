@@ -1,9 +1,16 @@
 import type { Camera } from '../core/camera'
-import type { Emoji } from '../core/types'
+import type { Cell, Emoji } from '../core/types'
 import type { Theme } from '../render/theme'
 import type { Tool, ToolContext } from '../tools/types'
 
-import { createCamera, screenToCell, zoomAt } from '../core/camera'
+import {
+  cellSizeAt,
+  cellToScreen,
+  createCamera,
+  fitBounds,
+  screenToCell,
+  zoomAt,
+} from '../core/camera'
 import { toText } from '../core/export/text'
 import { History } from '../core/history'
 import {
@@ -19,14 +26,20 @@ import { renderScene } from '../render/scene'
 import { DEFAULT_THEME } from '../render/theme'
 import { createBrushTool } from '../tools/brush'
 import { createEraserTool } from '../tools/eraser'
+import { createFillTool } from '../tools/fill'
+import { createShapeTool } from '../tools/shape'
+
+export type BrushSize = 1 | 3 | 5
 
 /** Everything the React shell is allowed to know about the engine. */
 export type EditorState = {
   brush: Emoji
+  brushSize: BrushSize
   canRedo: boolean
   canUndo: boolean
   isEmpty: boolean
   toolId: string
+  toolMessage: string
   zoom: number
 }
 
@@ -55,14 +68,19 @@ export class Editor {
 
   private atlas: GlyphAtlas
   private brush: Emoji = INITIAL_BRUSH
+  private brushSize: BrushSize = 1
   private destroyed = false
   private detachInput: () => void
   private dirty = true
   private dpr = 0
   private frame = 0
   private height = 0
+  private hoverPoint: null | { px: number; py: number } = null
+  private preview: null | { cell: Cell; cells: readonly Cell[] } = null
   private snapshot: EditorState | null = null
-  private tool: Tool
+  private strokeActive = false
+  private tool: null | Tool
+  private toolMessage = ''
   private width = 0
 
   constructor(container: HTMLElement, options?: { theme?: Partial<Theme> }) {
@@ -70,31 +88,61 @@ export class Editor {
 
     this.canvas = document.createElement('canvas')
     this.canvas.style.display = 'block'
+    this.canvas.setAttribute('aria-label', 'Drawing canvas')
     container.append(this.canvas)
 
     this.ctx = this.canvas.getContext('2d')!
     this.atlas = new GlyphAtlas(deviceRatio(), this.theme.fontStack)
 
     const brushTool = createBrushTool()
-    const eraserTool = createEraserTool()
+    const tools = [
+      brushTool,
+      createEraserTool(),
+      createFillTool(),
+      createShapeTool('line'),
+      createShapeTool('rectangle'),
+      createShapeTool('ellipse'),
+    ]
 
-    this.tools.set(brushTool.id, brushTool)
-    this.tools.set(eraserTool.id, eraserTool)
+    for (const tool of tools) this.tools.set(tool.id, tool)
     this.tool = brushTool
 
     this.detachInput = attachPointerInput(this.canvas, {
+      isPanMode: () => this.tool === null,
       onDrawCancel: () => this.cancelStroke(),
       onDrawEnd: () => this.endStroke(),
       onDrawMove: (px, py) => {
-        this.tool.onMove(this.toCell(px, py), this.toolContext())
+        if (!this.strokeActive) return
+
+        this.tool?.onMove(this.toCell(px, py), this.toolContext())
         // markDirty, not invalidate: a drag fires far more often than the
         // display refreshes, and nothing on the toolbar changes mid-stroke.
         // Notifying here would mean a React render per pointer event.
         this.markDirty()
       },
       onDrawStart: (px, py) => {
-        this.tool.onDown(this.toCell(px, py), this.toolContext())
+        if (!this.tool) return
+
+        this.strokeActive = true
+        this.toolMessage =
+          this.tool.onDown(this.toCell(px, py), this.toolContext()) ?? ''
         this.invalidate()
+      },
+      onHover: point => {
+        const previous = this.hoverPoint
+
+        this.hoverPoint = point
+
+        if (!this.tool || (!point && !previous)) return
+
+        if (point && previous && this.preview) {
+          const cell = this.toCell(point.px, point.py)
+
+          if (this.preview.cell.x === cell.x && this.preview.cell.y === cell.y)
+            return
+        }
+
+        this.markDirty()
       },
       onPan: (dx, dy) => this.panBy(dx, dy),
       onZoom: (factor, px, py) => this.zoomBy(factor, px, py),
@@ -108,6 +156,8 @@ export class Editor {
 
   /** Erases everything, as one undoable operation. */
   clear(): void {
+    this.cancelStroke()
+
     const op = createClearOperation(this.scene)
 
     if (op.changes.length === 0) return
@@ -130,6 +180,20 @@ export class Editor {
     this.listeners.clear()
   }
 
+  fitDrawing(): void {
+    if (this.width <= 0 || this.height <= 0) return
+
+    const bounds = this.scene.bounds()
+
+    if (!bounds) return
+
+    Object.assign(
+      this.camera,
+      fitBounds(bounds, this.theme.baseCellSize, this.width, this.height),
+    )
+    this.invalidate()
+  }
+
   /**
    * The same object until something actually changes. useSyncExternalStore
    * calls this on every render and compares by identity, so a fresh object
@@ -139,12 +203,14 @@ export class Editor {
     if (!this.snapshot) {
       this.snapshot = {
         brush: this.brush,
+        brushSize: this.brushSize,
         canRedo: this.history.canRedo,
         canUndo: this.history.canUndo,
         // scene.size, never bounds(): bounds() scans every drawn cell, and
         // this runs on every React render.
         isEmpty: this.scene.size === 0,
-        toolId: this.tool.id,
+        toolId: this.tool?.id ?? 'pan',
+        toolMessage: this.toolMessage,
         zoom: this.camera.zoom,
       }
     }
@@ -161,6 +227,7 @@ export class Editor {
   }
 
   redo(): void {
+    this.cancelStroke()
     if (this.history.redo(this.scene)) this.invalidate()
   }
 
@@ -174,16 +241,27 @@ export class Editor {
   setBrush(emoji: Emoji): void {
     if (this.brush === emoji) return
 
+    this.cancelStroke()
     this.brush = emoji
     this.invalidate()
   }
 
+  setBrushSize(size: BrushSize): void {
+    if (this.brushSize === size) return
+
+    this.cancelStroke()
+    this.brushSize = size
+    this.invalidate()
+  }
+
   setTool(id: string): void {
-    const next = this.tools.get(id)
+    const next = id === 'pan' ? null : this.tools.get(id)
 
-    if (!next || next === this.tool) return
+    if (next === undefined || next === this.tool) return
 
+    this.cancelStroke()
     this.tool = next
+    this.toolMessage = ''
     this.invalidate()
   }
 
@@ -200,6 +278,7 @@ export class Editor {
   }
 
   undo(): void {
+    this.cancelStroke()
     if (this.history.undo(this.scene)) this.invalidate()
   }
 
@@ -224,8 +303,12 @@ export class Editor {
    * the other's job.
    */
   private cancelStroke(): void {
+    if (!this.strokeActive) return
+
+    this.strokeActive = false
+    this.toolMessage = ''
     this.recorder.rollback(this.scene)
-    this.tool.onCancel(this.toolContext())
+    this.tool?.onCancel(this.toolContext())
     this.invalidate()
   }
 
@@ -237,9 +320,54 @@ export class Editor {
       theme: this.theme,
       width: this.width,
     })
+    this.drawPreview()
+  }
+
+  private drawPreview(): void {
+    if (!this.hoverPoint || !this.tool || this.strokeActive) return
+
+    const { px, py } = this.hoverPoint
+
+    if (px >= this.width || py >= this.height) return
+
+    const cell = this.toCell(px, py)
+
+    if (this.preview?.cell.x !== cell.x || this.preview.cell.y !== cell.y) {
+      this.preview = {
+        cell,
+        cells: this.tool.preview(cell, this.toolContext()),
+      }
+    }
+
+    const size = cellSizeAt(this.theme.baseCellSize, this.camera.zoom)
+    const inset = Math.min(1, size / 8)
+
+    this.ctx.fillStyle = 'rgba(255, 221, 76, 0.44)'
+
+    for (const { x, y } of this.preview.cells) {
+      const origin = cellToScreen(this.camera, this.theme.baseCellSize, x, y)
+
+      if (
+        origin.px + size <= 0 ||
+        origin.py + size <= 0 ||
+        origin.px >= this.width ||
+        origin.py >= this.height
+      )
+        continue
+
+      this.ctx.fillRect(
+        origin.px + inset,
+        origin.py + inset,
+        size - inset * 2,
+        size - inset * 2,
+      )
+    }
   }
 
   private endStroke(): void {
+    if (!this.strokeActive || !this.tool) return
+
+    this.strokeActive = false
     this.tool.onUp(this.toolContext())
 
     const committed = this.recorder.commit(this.tool.id)
@@ -255,6 +383,7 @@ export class Editor {
   private invalidate(): void {
     this.markDirty()
     this.snapshot = null
+    this.preview = null
 
     for (const listener of this.listeners) listener()
   }
@@ -307,7 +436,12 @@ export class Editor {
   }
 
   private toolContext(): ToolContext {
-    return { brush: this.brush, recorder: this.recorder, scene: this.scene }
+    return {
+      brush: this.brush,
+      brushSize: this.brushSize,
+      recorder: this.recorder,
+      scene: this.scene,
+    }
   }
 }
 

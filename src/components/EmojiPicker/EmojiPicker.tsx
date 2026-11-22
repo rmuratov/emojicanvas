@@ -1,25 +1,21 @@
-import { Picker } from 'emoji-picker-element'
+import type { Picker } from 'emoji-picker-element'
+
 import { useRef } from 'react'
 
 import { useEmojiPicker } from '../../hooks'
 
-export interface IEmojiPickerProps {
-  isHidden?: boolean
-  onEmojiClick?: (emojiCode: string) => void
-}
-
-export function EmojiPicker({ isHidden, onEmojiClick }: IEmojiPickerProps) {
+export function EmojiPicker({
+  onEmojiClick,
+}: {
+  onEmojiClick: (emoji: string) => void
+}) {
   const ref = useRef<Picker>(null)
 
   useEmojiPicker(ref, onEmojiClick)
 
   return (
-    <div
-      className={`fixed w-full bottom-0 left-0 md:w-auto md:absolute md:top-full md:-left-0 ${
-        isHidden ? 'hidden' : ''
-      }`}
-    >
-      <emoji-picker class="light w-full" ref={ref} />
+    <div className="picker-popover">
+      <emoji-picker class="light" ref={ref} />
     </div>
   )
 }

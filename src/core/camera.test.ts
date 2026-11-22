@@ -5,6 +5,7 @@ import {
   cellToScreen,
   clampZoom,
   createCamera,
+  fitBounds,
   MAX_ZOOM,
   MIN_ZOOM,
   screenToCell,
@@ -25,6 +26,35 @@ describe('clampZoom', () => {
     expect(clampZoom(1)).toBe(1)
     expect(clampZoom(100)).toBe(MAX_ZOOM)
     expect(clampZoom(0.0001)).toBe(MIN_ZOOM)
+  })
+})
+
+describe('fitBounds', () => {
+  it('centers an offset drawing and fits the wider axis with padding', () => {
+    const bounds = { maxX: 4, maxY: -3, minX: -15, minY: -8 }
+    const camera = fitBounds(bounds, 30, 300, 240)
+
+    const topLeft = cellToScreen(camera, 30, bounds.minX, bounds.minY)
+    const bottomRight = cellToScreen(
+      camera,
+      30,
+      bounds.maxX + 1,
+      bounds.maxY + 1,
+    )
+
+    expect(topLeft.px).toBeCloseTo(24)
+    expect(bottomRight.px).toBeCloseTo(276)
+    expect((topLeft.py + bottomRight.py) / 2).toBeCloseTo(120)
+  })
+
+  it('fits a tall drawing beyond the usual zoom-out limit', () => {
+    const bounds = { maxX: 0, maxY: 299, minX: 0, minY: 0 }
+    const camera = fitBounds(bounds, 30, 300, 240)
+
+    expect(camera.zoom).toBeLessThan(MIN_ZOOM)
+    expect(cellToScreen(camera, 30, 0, 0).py).toBeCloseTo(24)
+    expect(cellToScreen(camera, 30, 1, 300).py).toBeCloseTo(216)
+    expect(zoomAt(camera, 1.25, 150, 120).zoom).toBeCloseTo(camera.zoom * 1.25)
   })
 })
 

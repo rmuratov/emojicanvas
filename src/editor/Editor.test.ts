@@ -3,6 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_THEME } from '../render/theme'
 import { Editor } from './Editor'
 
+function cellPixel(canvas: HTMLCanvasElement, x: number, y: number): number[] {
+  const size = DEFAULT_THEME.baseCellSize * window.devicePixelRatio
+  const ctx = canvas.getContext('2d')!
+
+  return Array.from(
+    ctx.getImageData((x + 0.5) * size, (y + 0.5) * size, 1, 1).data,
+  )
+}
+
 function down(canvas: HTMLCanvasElement, px: number, py: number) {
   const box = canvas.getBoundingClientRect()
 
@@ -34,7 +43,12 @@ function mount() {
   return { canvas, container, editor }
 }
 
-function move(canvas: HTMLCanvasElement, px: number, py: number) {
+function move(
+  canvas: HTMLCanvasElement,
+  px: number,
+  py: number,
+  pointerType = 'touch',
+) {
   const box = canvas.getBoundingClientRect()
 
   canvas.dispatchEvent(
@@ -44,20 +58,24 @@ function move(canvas: HTMLCanvasElement, px: number, py: number) {
       clientY: box.top + py,
       isPrimary: true,
       pointerId: 1,
-      pointerType: 'touch',
+      pointerType,
     }),
   )
 }
 
 function tap(canvas: HTMLCanvasElement, px: number, py: number) {
   down(canvas, px, py)
-  up(canvas)
+  up(canvas, px, py)
 }
 
-function up(canvas: HTMLCanvasElement) {
+function up(canvas: HTMLCanvasElement, px: number, py: number) {
+  const box = canvas.getBoundingClientRect()
+
   canvas.dispatchEvent(
     new PointerEvent('pointerup', {
       bubbles: true,
+      clientX: box.left + px,
+      clientY: box.top + py,
       isPrimary: true,
       pointerId: 1,
       pointerType: 'touch',
@@ -127,13 +145,69 @@ describe('Editor', () => {
     expect(editor.toText()).toBe('❤️')
   })
 
+  it('highlights the brush footprint and clears the preview on pointer leave', async () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    editor.setBrushSize(3)
+    move(canvas, size * 1.5, size * 1.5, 'mouse')
+
+    await expect
+      .poll(() => {
+        const [red, , blue] = cellPixel(canvas, 0, 0)
+
+        return red - blue
+      })
+      .toBeGreaterThan(35)
+    expect(cellPixel(canvas, 2, 2)).toEqual(cellPixel(canvas, 0, 0))
+    expect(cellPixel(canvas, 3, 2)).toEqual([255, 255, 255, 255])
+    expect(editor.toText()).toBe('')
+    expect(editor.getSnapshot().canUndo).toBe(false)
+
+    canvas.dispatchEvent(new PointerEvent('pointerleave'))
+
+    await expect
+      .poll(() => cellPixel(canvas, 0, 0))
+      .toEqual([255, 255, 255, 255])
+  })
+
+  it('previews enclosed fill cells and leaves the open canvas alone', async () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    editor.setTool('rectangle')
+    down(canvas, size / 2, size / 2)
+    up(canvas, size * 3.5, size * 3.5)
+    const drawing = editor.toText()
+
+    editor.setTool('fill')
+    editor.setBrush('⭐')
+    move(canvas, size * 1.5, size * 1.5, 'mouse')
+
+    await expect
+      .poll(() => {
+        const [red, , blue] = cellPixel(canvas, 2, 2)
+
+        return red - blue
+      })
+      .toBeGreaterThan(35)
+    expect(cellPixel(canvas, 4, 2)).toEqual([255, 255, 255, 255])
+    expect(editor.toText()).toBe(drawing)
+
+    move(canvas, size * 4.5, size * 2.5, 'mouse')
+
+    await expect
+      .poll(() => cellPixel(canvas, 2, 2))
+      .toEqual([255, 255, 255, 255])
+  })
+
   it('makes a whole stroke one undo step', () => {
     const { canvas, editor } = mount()
     const size = DEFAULT_THEME.baseCellSize
 
     down(canvas, 5, 5)
     move(canvas, 5 + size * 3, 5)
-    up(canvas)
+    up(canvas, 5 + size * 3, 5)
 
     expect(editor.getSnapshot().canUndo).toBe(true)
 
@@ -153,7 +227,7 @@ describe('Editor', () => {
     // event points and left a dotted trail.
     down(canvas, size / 2, size / 2)
     move(canvas, size * 4 + size / 2, size / 2)
-    up(canvas)
+    up(canvas, size * 4 + size / 2, size / 2)
 
     expect(editor.toText()).toBe('❤️❤️❤️❤️❤️')
   })
@@ -212,6 +286,49 @@ describe('Editor', () => {
 
     expect(editor.getSnapshot().isEmpty).toBe(true)
     expect(editor.getSnapshot().toolId).toBe('eraser')
+  })
+
+  it('replaces the shape preview and fills its interior as one undo step', () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    editor.setTool('rectangle')
+    down(canvas, 5, 5)
+    move(canvas, size * 4 + 5, size * 4 + 5)
+    up(canvas, size * 2 + 5, size * 2 + 5)
+
+    const outline = '❤️❤️❤️\n❤️〰️❤️\n❤️❤️❤️'
+
+    expect(editor.toText()).toBe(outline)
+
+    editor.setTool('fill')
+    editor.setBrush('⭐')
+    tap(canvas, size + 5, size + 5)
+    expect(editor.toText()).toBe('❤️❤️❤️\n❤️⭐❤️\n❤️❤️❤️')
+    editor.undo()
+    expect(editor.toText()).toBe(outline)
+    editor.redo()
+    expect(editor.toText()).toBe('❤️❤️❤️\n❤️⭐❤️\n❤️❤️❤️')
+  })
+
+  it('fills an emoji cluster without crossing into the open canvas', () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    editor.setBrushSize(3)
+    tap(canvas, 5, 5)
+
+    editor.setTool('fill')
+    editor.setBrush('💚')
+    tap(canvas, size * 2 + 5, 5)
+
+    expect(editor.getSnapshot().toolMessage).toContain('Close the outline')
+    expect(editor.toText()).toBe('❤️❤️❤️\n❤️❤️❤️\n❤️❤️❤️')
+
+    tap(canvas, 5, 5)
+    expect(editor.toText()).toBe('💚💚💚\n💚💚💚\n💚💚💚')
+    editor.undo()
+    expect(editor.toText()).toBe('❤️❤️❤️\n❤️❤️❤️\n❤️❤️❤️')
   })
 
   it('makes clearing undoable', () => {
