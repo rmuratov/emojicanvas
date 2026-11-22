@@ -14,6 +14,11 @@ npm run dev
 # go to http://localhost:5173/emojicanvas/
 ```
 
+Run `npx playwright install chromium` before the first test run. Use `npm test` for the
+Node.js and Chromium suites, or `npm run test:coverage` for the same suites with coverage.
+The HTML report is written to `coverage/index.html`. CI requires 100% statement, branch,
+function, and line coverage across the application source.
+
 ## Drawing tools
 
 Choose an emoji from the palette or open **More emojis**. The brush and eraser support 1×1,

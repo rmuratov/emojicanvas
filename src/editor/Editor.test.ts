@@ -418,3 +418,112 @@ describe('Editor', () => {
     expect(() => editor.destroy()).not.toThrow()
   })
 })
+
+describe('editor input edge cases', () => {
+  it('uses the hand to pan and wheel gestures to zoom without changing the drawing', () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+    tap(canvas, 5, 5)
+    editor.setTool('pan')
+    down(canvas, 5, 5)
+    move(canvas, size + 5, 5)
+    up(canvas, size + 5, 5)
+    expect(editor.toText()).toBe('❤️')
+
+    editor.setTool('brush')
+    tap(canvas, 5, 5)
+    expect(editor.toText()).toBe('❤️❤️')
+
+    canvas.dispatchEvent(new WheelEvent('wheel', { deltaX: 30 }))
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', { ctrlKey: true, deltaY: -100 }),
+    )
+    expect(editor.getSnapshot().zoom).toBeGreaterThan(1)
+  })
+
+  it('rolls back a stroke when switching tools before releasing the pointer', () => {
+    const { canvas, editor } = mount()
+
+    down(canvas, 5, 5)
+    editor.setTool('eraser')
+    move(canvas, 80, 80)
+    up(canvas, 80, 80)
+
+    expect(editor.toText()).toBe('')
+    expect(editor.getSnapshot().canUndo).toBe(false)
+  })
+
+  it('leaves state intact for empty history, an empty fit, or unchanged brush settings', () => {
+    const { editor } = mount()
+    const previous = editor.getSnapshot()
+
+    editor.undo()
+    editor.redo()
+    editor.fitDrawing()
+    editor.setBrush(previous.brush)
+    editor.setBrushSize(previous.brushSize)
+
+    expect(editor.getSnapshot()).toBe(previous)
+  })
+
+  it('ignores fitting while its container has no dimensions', () => {
+    const container = document.createElement('div')
+    const editor = new Editor(container)
+    const before = editor.getSnapshot()
+
+    editor.fitDrawing()
+
+    expect(editor.getSnapshot()).toBe(before)
+    editor.destroy()
+  })
+
+  it('clips a large brush preview at the bounds and updates on vertical movement', async () => {
+    const { canvas, editor } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    editor.setBrushSize(3)
+    await expect
+      .poll(() => cellPixel(canvas, 0, 0))
+      .toEqual([255, 255, 255, 255])
+    move(canvas, 5, 5, 'mouse')
+    await expect
+      .poll(() => cellPixel(canvas, 0, 0))
+      .not.toEqual([255, 255, 255, 255])
+    move(canvas, 6, 6, 'mouse')
+    move(canvas, 6, 3 * size + 6, 'mouse')
+    await expect
+      .poll(() => cellPixel(canvas, 0, 0))
+      .toEqual([255, 255, 255, 255])
+    expect(cellPixel(canvas, 0, 3)).not.toEqual([255, 255, 255, 255])
+  })
+
+  it('handles a viewport shrinking past the pointer without leaving a highlight', async () => {
+    const { canvas, container } = mount()
+    const size = DEFAULT_THEME.baseCellSize
+
+    await expect
+      .poll(() => cellPixel(canvas, 0, 0))
+      .toEqual([255, 255, 255, 255])
+    move(canvas, 2 * size + 5, 2 * size + 5, 'mouse')
+    await expect
+      .poll(() => cellPixel(canvas, 2, 2))
+      .not.toEqual([255, 255, 255, 255])
+    container.style.height = '60px'
+    await expect.poll(() => canvas.clientHeight).toBe(60)
+    await expect
+      .poll(() => cellPixel(canvas, 1, 1))
+      .toEqual([255, 255, 255, 255])
+  })
+
+  it('uses one buffer pixel per CSS pixel when device pixel ratio is missing', () => {
+    vi.stubGlobal('devicePixelRatio', undefined)
+    try {
+      const { canvas, container, editor } = mount()
+
+      expect(canvas.width).toBe(container.clientWidth)
+      editor.destroy()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})

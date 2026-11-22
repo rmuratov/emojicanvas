@@ -144,13 +144,10 @@ function addToBlock(
 }
 
 /**
- * The one-pixel-per-block buffer, grown to fit and cleared. Null only if the
- * grid is degenerate, which a zero-sized viewport already rules out before
- * any of this runs.
+ * The one-pixel-per-block buffer, grown to fit and cleared. The caller
+ * supplies a nonempty viewport. A missing canvas context leaves it blank.
  */
 function blockBuffer(columns: number, rows: number): ImageData | null {
-  if (columns <= 0 || rows <= 0) return null
-
   blockCanvas ??= document.createElement('canvas')
 
   if (blockCanvas.width !== columns || blockCanvas.height !== rows) {

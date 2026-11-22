@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { RenderOptions } from './scene'
 
@@ -275,4 +275,63 @@ describe('renderScene', () => {
       renderScene(ctx, new Scene(), options({ height: 0, width: 0 })),
     ).not.toThrow()
   })
+})
+
+it('skips cells beyond either viewport axis in block mode and leaves gaps blank', () => {
+  const ctx = surface()
+  const scene = new Scene()
+  const drawOptions = options({ camera: { offsetX: 0, offsetY: 0, zoom: 0.1 } })
+  const white = [255, 255, 255, 255]
+
+  scene.writeCell(100, 0, '🔥')
+  scene.writeCell(0, 100, '🔥')
+  renderScene(ctx, scene, drawOptions)
+  expect(pixel(ctx, 1, 1)).toEqual(white)
+
+  scene.writeCell(0, 0, '🔥')
+  scene.writeCell(10, 10, '🔥')
+  renderScene(ctx, scene, drawOptions)
+  expect(pixel(ctx, 1, 1)).not.toEqual(white)
+  expect(pixel(ctx, 31, 31)).not.toEqual(white)
+  expect(pixel(ctx, 15, 15)).toEqual(white)
+})
+
+it('clips sparse glyphs on the vertical axis while leaving visible glyphs intact', () => {
+  const ctx = surface()
+  const scene = new Scene()
+  const expected = new Scene()
+
+  scene.writeCell(1, 1, '❤️')
+  expected.writeCell(1, 1, '❤️')
+  scene.writeCell(1, -10, '🔥')
+
+  renderScene(ctx, expected, options())
+  const visibleOnly = bytes(ctx)
+
+  renderScene(ctx, scene, options())
+  expect(bytes(ctx)).toEqual(visibleOnly)
+})
+
+it('leaves the background intact when the block buffer has no drawing context', () => {
+  const ctx = surface()
+  const scene = new Scene()
+
+  scene.writeCell(0, 0, '🔥')
+  const spy = vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockReturnValue(null)
+  try {
+    renderScene(
+      ctx,
+      scene,
+      options({
+        camera: { offsetX: 0, offsetY: 0, zoom: 0.1 },
+        height: 17,
+        width: 13,
+      }),
+    )
+    expect(pixel(ctx, 1, 1)).toEqual([255, 255, 255, 255])
+  } finally {
+    spy.mockRestore()
+  }
 })

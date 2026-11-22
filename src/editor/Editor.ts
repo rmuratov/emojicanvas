@@ -1,7 +1,7 @@
 import type { Camera } from '../core/camera'
 import type { Cell, Emoji } from '../core/types'
 import type { Theme } from '../render/theme'
-import type { Tool, ToolContext } from '../tools/types'
+import type { Tool, ToolContext, ToolId } from '../tools/types'
 
 import {
   cellSizeAt,
@@ -38,7 +38,7 @@ export type EditorState = {
   canRedo: boolean
   canUndo: boolean
   isEmpty: boolean
-  toolId: string
+  toolId: 'pan' | ToolId
   toolMessage: string
   zoom: number
 }
@@ -121,11 +121,9 @@ export class Editor {
         this.markDirty()
       },
       onDrawStart: (px, py) => {
-        if (!this.tool) return
-
         this.strokeActive = true
         this.toolMessage =
-          this.tool.onDown(this.toCell(px, py), this.toolContext()) ?? ''
+          this.tool?.onDown(this.toCell(px, py), this.toolContext()) ?? ''
         this.invalidate()
       },
       onHover: point => {
@@ -420,8 +418,6 @@ export class Editor {
    */
   private scheduleFrame(): void {
     this.frame = requestAnimationFrame(() => {
-      if (this.destroyed) return
-
       if (this.dirty) {
         this.dirty = false
         this.draw()

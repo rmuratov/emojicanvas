@@ -71,7 +71,6 @@ export function App() {
     toolMessage,
     zoom,
   } = useEditorState(editor)
-  const currentTool = TOOLS.find(tool => tool.id === toolId) ?? TOOLS[0]
   const brushName =
     PALETTE.find(([emoji]) => emoji === brush)?.[1] ?? 'Custom emoji'
   const hasBrushSize = toolId === 'brush' || toolId === 'eraser'
@@ -112,7 +111,9 @@ export function App() {
   }, [isPickerOpen])
 
   useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
+    if (!editor) return
+
+    const handleKey = (event: KeyboardEvent) => {
       if (isPickerOpen) {
         if (event.key === 'Escape') {
           setPickerOpen(false)
@@ -122,7 +123,7 @@ export function App() {
         return
       }
 
-      if (event.defaultPrevented || event.altKey || !editor) return
+      if (event.defaultPrevented || event.altKey) return
 
       const target = event.target
 
@@ -332,7 +333,7 @@ export function App() {
             ref={canvasRef}
             style={
               {
-                '--tool-cursor': toolCursor(currentTool.id),
+                '--tool-cursor': toolCursor(toolId),
               } as CSSProperties
             }
           />

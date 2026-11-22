@@ -16,9 +16,9 @@ on:
 permissions:
   contents: read
 
-# Allow one concurrent deployment
+# Cancel superseded runs for the same pull request or branch.
 concurrency:
-  group: 'pages'
+  group: pages-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,8 +44,8 @@ jobs:
         run: npm run lint
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
-      - name: Test
-        run: npm test
+      - name: Test with coverage
+        run: npm run test:coverage
       - name: Build
         run: npm run build
 

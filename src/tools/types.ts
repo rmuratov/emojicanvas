@@ -10,7 +10,7 @@ export type PreviewContext = Omit<ToolContext, 'recorder'>
  * the recorded stroke after onUp.
  */
 export interface Tool {
-  readonly id: string
+  readonly id: ToolId
   /**
    * Abandons the in-progress stroke, e.g. when a second finger turns a
    * drawing stroke into a pinch gesture. Resets whatever the tool
@@ -35,3 +35,6 @@ export type ToolContext = {
   recorder: StrokeRecorder
   scene: Scene
 }
+
+export type ToolId =
+  'brush' | 'ellipse' | 'eraser' | 'fill' | 'line' | 'rectangle'

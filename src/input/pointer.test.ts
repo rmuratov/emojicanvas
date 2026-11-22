@@ -419,3 +419,89 @@ describe('attachPointerInput gestures', () => {
     expect(handlers.onPan).not.toHaveBeenCalled()
   })
 })
+
+describe('pointer edge cases', () => {
+  it('ignores secondary clicks and repeated presses from an active pointer', () => {
+    const { el, handlers } = harness()
+    const send = (type: string, pointerId: number, button = 0) =>
+      el.dispatchEvent(pointer(type, { button, pointerId }))
+
+    send('pointerdown', 1, 2)
+    expect(handlers.onDrawStart).not.toHaveBeenCalled()
+
+    send('pointerdown', 1)
+    send('pointerdown', 1)
+    expect(handlers.onDrawStart).toHaveBeenCalledTimes(1)
+
+    send('pointerdown', 2)
+    send('pointerup', 2)
+    send('pointerdown', 1)
+    expect(handlers.onDrawStart).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases the middle-button pan and drops hover outside its capture', () => {
+    const el = document.createElement('div')
+    const box = new DOMRect(20, 30, 100, 100)
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue(box)
+    el.setPointerCapture = vi.fn()
+    el.releasePointerCapture = vi.fn()
+    el.hasPointerCapture = vi.fn(() => true)
+    const onPan = vi.fn()
+    const onHover = vi.fn()
+    const onDrawStart = vi.fn()
+    const detach = attachPointerInput(el, {
+      onDrawCancel: vi.fn(),
+      onDrawEnd: vi.fn(),
+      onDrawMove: vi.fn(),
+      onDrawStart,
+      onHover,
+      onPan,
+      onZoom: vi.fn(),
+    })
+
+    const send = (type: string, x: number, button = 0) =>
+      el.dispatchEvent(
+        pointer(type, {
+          button,
+          clientX: x,
+          clientY: 50,
+          pointerId: 1,
+          pointerType: 'mouse',
+        }),
+      )
+
+    send('pointermove', 40)
+    expect(onHover).toHaveBeenLastCalledWith({ px: 20, py: 20 })
+    send('pointerdown', 40, 1)
+    send('pointermove', 70)
+    expect(onPan).toHaveBeenCalledWith(30, 0)
+    send('pointerup', 140, 1)
+    expect(el.releasePointerCapture).toHaveBeenCalledWith(1)
+    expect(onHover).toHaveBeenLastCalledWith(null)
+    send('pointerdown', 40)
+    expect(onDrawStart).toHaveBeenCalledTimes(1)
+    detach()
+  })
+
+  it('keeps a three-pointer gesture active after one contact is lifted', () => {
+    const { el, handlers } = harness()
+    const send = (
+      type: string,
+      pointerId: number,
+      clientX: number,
+      clientY = 10,
+    ) => el.dispatchEvent(pointer(type, { clientX, clientY, pointerId }))
+
+    send('pointerdown', 1, 10)
+    send('pointerdown', 2, 50)
+    send('pointerdown', 3, 90)
+    send('pointerup', 3, 90)
+    send('pointermove', 2, 50)
+    expect(handlers.onPan).not.toHaveBeenCalled()
+    expect(handlers.onZoom).not.toHaveBeenCalled()
+    send('pointermove', 2, 50, 30)
+    expect(handlers.onPan).toHaveBeenCalledWith(0, 10)
+    expect(handlers.onZoom).toHaveBeenCalledTimes(1)
+    expect(handlers.onDrawMove).not.toHaveBeenCalled()
+  })
+})
