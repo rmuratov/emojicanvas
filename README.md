@@ -19,6 +19,9 @@ Node.js and Chromium suites, or `npm run test:coverage` for the same suites with
 The HTML report is written to `coverage/index.html`. CI requires 100% statement, branch,
 function, and line coverage across the application source.
 
+Run `npm run size` to build the app and check that the total Brotli-compressed production
+JavaScript stays within 80 kB. CI runs the same check.
+
 ### Benchmarks
 
 Run `npm run bench` to measure rendering and strokes in Chromium. With `npm run dev` running,
