@@ -46,8 +46,8 @@ jobs:
         run: npx playwright install chromium --with-deps
       - name: Test with coverage
         run: npm run test:coverage
-      - name: Build
-        run: npm run build
+      - name: Build and check bundle size
+        run: npm run size
 
   deploy:
     if: |
